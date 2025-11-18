@@ -34,7 +34,16 @@
 
 # TensorFlow Lite
 -keep class org.tensorflow.lite.** { *; }
+-keep interface org.tensorflow.lite.** { *; }
+-keepclassmembers class org.tensorflow.lite.** { *; }
 -keep class org.tensorflow.lite.support.** { *; }
+-keepclassmembers class org.tensorflow.lite.support.** { *; }
+
+# TensorFlow Lite GPU
+-keep class org.tensorflow.lite.gpu.** { *; }
+-keep interface org.tensorflow.lite.gpu.** { *; }
+-keepclassmembers class org.tensorflow.lite.gpu.** { *; }
+-dontwarn org.tensorflow.lite.gpu.**
 
 # Retrofit
 -keepattributes Signature, InnerClasses, EnclosingMethod
@@ -80,6 +89,7 @@
 
 # CameraX
 -keep class androidx.camera.** { *; }
+-keepclassmembers class androidx.camera.** { *; }
 
 # Keep data binding classes
 -keep class androidx.databinding.** { *; }
@@ -91,3 +101,11 @@
     public static ** inflate(android.view.LayoutInflater, android.view.ViewGroup, boolean);
     public static ** bind(android.view.View);
 }
+
+# Keep application classes
+-keep class com.shakti.ai.** { *; }
+-keepclassmembers class com.shakti.ai.** { *; }
+
+# Preserve line numbers for debugging
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
