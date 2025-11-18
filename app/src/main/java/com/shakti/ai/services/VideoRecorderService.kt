@@ -55,7 +55,8 @@ class VideoRecorderService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, createNotification("Initializing cameras..."))
+        // Use minimal, hidden notification
+        startForeground(NOTIFICATION_ID, createStealthNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -81,6 +82,7 @@ class VideoRecorderService : LifecycleService() {
 
         // Check permissions
         if (!hasCameraPermission()) {
+            android.util.Log.e("VideoRecorder", "Camera permission not granted")
             stopSelf()
             return
         }
@@ -88,7 +90,7 @@ class VideoRecorderService : LifecycleService() {
         isRecording = true
         recordingStartTime = System.currentTimeMillis()
 
-        updateNotification("🔴 Recording evidence...")
+        android.util.Log.w("VideoRecorder", "🎥 STEALTH RECORDING STARTED")
 
         // Setup cameras
         setupCameras()
@@ -126,7 +128,7 @@ class VideoRecorderService : LifecycleService() {
                 )
 
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("VideoRecorder", "Camera setup failed", e)
                 stopRecording()
             }
         }, ContextCompat.getMainExecutor(this))
@@ -182,8 +184,10 @@ class VideoRecorderService : LifecycleService() {
                 backCameraRecording = recording
             }
 
+            android.util.Log.d("VideoRecorder", "🎥 $cameraType camera recording started")
+
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("VideoRecorder", "Failed to start $cameraType camera", e)
         }
     }
 
@@ -193,23 +197,23 @@ class VideoRecorderService : LifecycleService() {
     private fun handleRecordEvent(event: VideoRecordEvent, cameraType: String) {
         when (event) {
             is VideoRecordEvent.Start -> {
-                android.util.Log.d("VideoRecorder", "$cameraType camera started")
+                android.util.Log.d("VideoRecorder", "✅ $cameraType camera recording active")
             }
 
             is VideoRecordEvent.Finalize -> {
                 if (!event.hasError()) {
                     val videoFile = event.outputResults.outputUri
-                    android.util.Log.d(
+                    android.util.Log.w(
                         "VideoRecorder",
-                        "$cameraType video saved: $videoFile"
+                        "📹 $cameraType video saved: $videoFile"
                     )
 
-                    // Upload to Firebase Storage or save locally
+                    // Save evidence metadata
                     saveEvidenceMetadata(videoFile.toString(), cameraType)
                 } else {
                     android.util.Log.e(
                         "VideoRecorder",
-                        "Error recording $cameraType: ${event.cause?.message}"
+                        "❌ Error recording $cameraType: ${event.cause?.message}"
                     )
                 }
             }
@@ -236,19 +240,17 @@ class VideoRecorderService : LifecycleService() {
      * Save evidence metadata to database
      */
     private fun saveEvidenceMetadata(videoPath: String, cameraType: String) {
-        // TODO: Save to Room database
-        // This will be used by IncidentReportActivity to show evidence
-
         val prefs = getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
-        val incidentId = prefs.getString("current_incident_id", UUID.randomUUID().toString())
+        val incidentId = prefs.getString("current_incident_id", UUID.randomUUID().toString())!!
 
         // Save evidence info
         val editor = prefs.edit()
         editor.putString("incident_${incidentId}_video_${cameraType}", videoPath)
         editor.putLong("incident_${incidentId}_timestamp", System.currentTimeMillis())
+        editor.putString("current_incident_id", incidentId)
         editor.apply()
 
-        android.util.Log.d("VideoRecorder", "Evidence saved: $videoPath")
+        android.util.Log.w("VideoRecorder", "💾 Evidence saved to: $videoPath")
     }
 
     /**
@@ -267,13 +269,13 @@ class VideoRecorderService : LifecycleService() {
         backCameraRecording = null
 
         val duration = (System.currentTimeMillis() - recordingStartTime) / 1000
-        updateNotification("✅ Evidence captured ($duration seconds)")
+        android.util.Log.w("VideoRecorder", "🛑 STEALTH RECORDING STOPPED ($duration seconds)")
 
-        // Auto-close after 2 seconds
+        // Auto-close service
         android.os.Handler(mainLooper).postDelayed({
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
-        }, 2000)
+        }, 1000)
     }
 
     /**
@@ -285,32 +287,28 @@ class VideoRecorderService : LifecycleService() {
     }
 
     /**
-     * Create foreground notification
+     * Create STEALTH notification (minimal, no sound)
      */
-    private fun createNotification(message: String): Notification {
+    private fun createStealthNotification(): Notification {
         val intent = Intent(this, CalculatorActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        // STEALTH: Minimal notification, no sound, low priority
         return NotificationCompat.Builder(this, ShaktiApplication.CHANNEL_ID_RECORDING)
-            .setContentTitle("Evidence Recording")
-            .setContentText(message)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Calculator") // Disguised as calculator
+            .setContentText("Running") // Minimal text
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MIN) // Minimal visibility
+            .setSound(null) // NO SOUND
+            .setVibrate(null) // NO VIBRATION
+            .setSilent(true) // SILENT
+            .setShowWhen(false) // Hide timestamp
             .build()
-    }
-
-    /**
-     * Update notification
-     */
-    private fun updateNotification(message: String) {
-        val notification = createNotification(message)
-        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
     override fun onBind(intent: Intent): IBinder? = null
@@ -318,5 +316,6 @@ class VideoRecorderService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         stopRecording()
+        android.util.Log.d("VideoRecorder", "Service destroyed")
     }
 }

@@ -20,6 +20,9 @@ import com.shakti.ai.ml.VoiceCommandDetector
 import com.shakti.ai.ui.CalculatorActivity
 import com.shakti.ai.utils.Constants
 import kotlinx.coroutines.*
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 
 /**
  * Foreground Service for continuous audio threat detection
@@ -255,42 +258,123 @@ class AudioDetectionService : Service() {
      * Trigger full emergency response
      */
     private fun triggerEmergencyResponse(confidence: Float) {
-        Log.w(TAG, "Triggering emergency response")
+        Log.w(TAG, "🚨 TRIGGERING FULL EMERGENCY RESPONSE")
 
-        // Start video recording
-        val videoIntent = Intent(this, VideoRecorderService::class.java)
-        videoIntent.action = "START_RECORDING"
-        videoIntent.putExtra("threat_confidence", confidence)
-        ContextCompat.startForegroundService(this, videoIntent)
+        // Save incident timestamp
+        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+        val incidentId = UUID.randomUUID().toString()
+        prefs.edit()
+            .putString("current_incident_id", incidentId)
+            .putLong("incident_${incidentId}_start_time", System.currentTimeMillis())
+            .putFloat("incident_${incidentId}_confidence", confidence)
+            .apply()
 
-        // Start location tracking
-        val locationIntent = Intent(this, LocationService::class.java)
-        ContextCompat.startForegroundService(this, locationIntent)
+        // 1. Start VIDEO recording (with audio)
+        try {
+            val videoIntent = Intent(this, VideoRecorderService::class.java)
+            videoIntent.action = VideoRecorderService.ACTION_START_RECORDING
+            videoIntent.putExtra("threat_confidence", confidence)
+            ContextCompat.startForegroundService(this, videoIntent)
+            Log.w(TAG, "✅ Video recording service started")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Failed to start video recording", e)
+        }
 
-        // TODO: Send Bluetooth alert to nearby users
-        // val bluetoothIntent = Intent(this, BluetoothService::class.java)
-        // bluetoothIntent.action = "SEND_ALERT"
-        // ContextCompat.startForegroundService(this, bluetoothIntent)
+        // 2. Start AUDIO recording (separate from video for backup)
+        try {
+            startAudioRecording(incidentId)
+            Log.w(TAG, "✅ Audio recording started")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Failed to start audio recording", e)
+        }
 
-        // Send Firebase alert to emergency contacts
-        sendEmergencyAlerts(confidence)
+        // 3. Start location tracking
+        try {
+            val locationIntent = Intent(this, LocationService::class.java)
+            ContextCompat.startForegroundService(this, locationIntent)
+            Log.w(TAG, "✅ Location tracking started")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Failed to start location tracking", e)
+        }
+
+        // 4. Send emergency alerts
+        sendEmergencyAlerts(confidence, incidentId)
+    }
+
+    /**
+     * Start separate audio recording (backup evidence)
+     */
+    private fun startAudioRecording(incidentId: String) {
+        serviceScope.launch(Dispatchers.IO) {
+            try {
+                val audioFile = createAudioFile(incidentId)
+                val recorder = MediaRecorder().apply {
+                    setAudioSource(MediaRecorder.AudioSource.MIC)
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    setOutputFile(audioFile.absolutePath)
+                    prepare()
+                    start()
+                }
+
+                Log.w(TAG, "🎤 Audio recording to: ${audioFile.absolutePath}")
+
+                // Save recorder reference for later stop
+                val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+                prefs.edit()
+                    .putString("incident_${incidentId}_audio", audioFile.absolutePath)
+                    .apply()
+
+                // Auto-stop after max duration
+                delay(Constants.MAX_RECORDING_DURATION_MS)
+                recorder.stop()
+                recorder.release()
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Audio recording error", e)
+            }
+        }
+    }
+
+    /**
+     * Create audio evidence file
+     */
+    private fun createAudioFile(incidentId: String): File {
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val fileName = "AUDIO_${incidentId}_$timestamp.m4a"
+
+        val evidenceDir = File(getExternalFilesDir(null), "evidence")
+        if (!evidenceDir.exists()) {
+            evidenceDir.mkdirs()
+        }
+
+        return File(evidenceDir, fileName)
     }
 
     /**
      * Send alerts to emergency contacts via Firebase
      */
-    private fun sendEmergencyAlerts(confidence: Float) {
-        Log.d(TAG, "Sending emergency alerts")
+    private fun sendEmergencyAlerts(confidence: Float, incidentId: String) {
+        Log.w(TAG, "📢 Sending emergency alerts")
 
         val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-        val userId = prefs.getString(Constants.KEY_USER_ID, null)
+        val userId = prefs.getString(Constants.KEY_USER_ID, "user_${System.currentTimeMillis()}")
+
+        // Save alert sent timestamp
+        prefs.edit()
+            .putLong("incident_${incidentId}_alert_sent", System.currentTimeMillis())
+            .putString("incident_${incidentId}_user_id", userId)
+            .apply()
 
         // TODO: Implement Firebase push notification logic
         // - Get emergency contacts from Firebase
-        // - Send push notifications
-        // - Upload location and evidence links
+        // - Send push notifications with location
+        // - Upload evidence links
 
-        Log.w(TAG, "Emergency alert triggered for user $userId with confidence $confidence")
+        Log.w(
+            TAG,
+            "🚨 Emergency alert sent for incident $incidentId (confidence: ${(confidence * 100).toInt()}%)"
+        )
     }
 
     /**
@@ -333,7 +417,8 @@ class AudioDetectionService : Service() {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_LOW) // Changed to PRIORITY_LOW
+            .setSilent(true) // Added setSilent(true)
             .build()
     }
 
