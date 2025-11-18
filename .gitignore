@@ -98,3 +98,42 @@ Thumbs.db
 
 # Kotlin
 .kotlin/
+
+# ======================================
+# Web Landing Page (Next.js)
+# ======================================
+
+# Dependencies
+web/node_modules/
+web/.pnp
+web/.pnp.js
+
+# Testing
+web/coverage/
+
+# Next.js
+web/.next/
+web/out/
+
+# Production
+web/build/
+
+# Misc
+web/.DS_Store
+web/*.pem
+
+# Debug
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+
+# Local env files
+web/.env*.local
+
+# Vercel
+web/.vercel
+.vercel
+
+# TypeScript
+web/*.tsbuildinfo
+web/next-env.d.ts
