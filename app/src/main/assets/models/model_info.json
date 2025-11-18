@@ -1,0 +1,112 @@
+{
+  "models": [
+    {
+      "name": "YAMNet Audio Classifier",
+      "filename": "audio_threat_model.tflite",
+      "required": true,
+      "type": "audio_classification",
+      "description": "YAMNet is a pre-trained deep net for audio event classification. It can detect 521 different audio events including screams, yelling, crying, and various threatening sounds.",
+      "input": {
+        "type": "float32",
+        "shape": [
+          1,
+          15600
+        ],
+        "description": "Audio waveform sampled at 16kHz for 0.975 seconds (15600 samples)"
+      },
+      "output": {
+        "type": "float32",
+        "shape": [
+          1,
+          521
+        ],
+        "description": "Probability scores for 521 audio event classes from AudioSet ontology"
+      },
+      "preprocessing": "Convert audio to 16kHz mono, normalize waveform to range [-1.0, 1.0]",
+      "sample_rate": 16000,
+      "audio_length_seconds": 0.975,
+      "threat_classes": [
+        "Screaming",
+        "Yell",
+        "Crying, sobbing",
+        "Whimper",
+        "Wail, moan",
+        "Glass breaking",
+        "Slam",
+        "Angry speech"
+      ],
+      "recommended_threshold": 0.5,
+      "model_source": "TensorFlow Hub - google/yamnet/1",
+      "model_size_mb": 3.94
+    },
+    {
+      "name": "Violence Detector",
+      "filename": "violence_detector.tflite",
+      "required": false,
+      "type": "image_classification",
+      "description": "Detects violent actions from video frames",
+      "input": {
+        "type": "uint8",
+        "shape": [
+          1,
+          224,
+          224,
+          3
+        ],
+        "description": "RGB image normalized to 0-255"
+      },
+      "output": {
+        "type": "float32",
+        "shape": [
+          1,
+          1001
+        ],
+        "description": "Classification scores for ImageNet classes"
+      },
+      "preprocessing": "Resize to 224x224, normalize RGB values",
+      "threshold": 0.6,
+      "recommended_source": "MobileNet V2 from TensorFlow Hub"
+    },
+    {
+      "name": "Emotion Classifier",
+      "filename": "emotion_classifier.tflite",
+      "required": false,
+      "type": "emotion_recognition",
+      "description": "Analyzes emotional state from facial expressions",
+      "input": {
+        "type": "float32",
+        "shape": [
+          1,
+          96,
+          96,
+          1
+        ],
+        "description": "Grayscale face crop normalized to [0, 1]"
+      },
+      "output": {
+        "type": "float32",
+        "shape": [
+          1,
+          7
+        ],
+        "description": "Probabilities for: angry, disgust, fear, happy, sad, surprise, neutral"
+      },
+      "preprocessing": "Detect face, crop, convert to grayscale, resize to 96x96",
+      "threshold": 0.5,
+      "recommended_source": "Custom trained FER+ model"
+    }
+  ],
+  "configuration": {
+    "use_gpu_acceleration": true,
+    "num_threads": 4,
+    "enable_nnapi": true,
+    "cache_models": true
+  },
+  "notes": [
+    "YAMNet model (audio_threat_model.tflite) is now present and ready to use",
+    "Model was trained on AudioSet dataset with 521 audio event classes",
+    "For threat detection, monitor classes related to screaming, yelling, crying, glass breaking, etc.",
+    "All inference is performed on-device for privacy",
+    "Models should be optimized for mobile (quantized preferred)"
+  ]
+}

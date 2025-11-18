@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Base Application Theme -->
+    <style name="Theme.ShaktiAI" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorSecondaryVariant">@color/accent</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">@color/calculator_background</item>
+
+        <!-- Customize your theme here -->
+        <item name="android:windowBackground">@color/background_primary</item>
+        <item name="android:textColorPrimary">@color/text_dark</item>
+        <item name="android:textColorSecondary">@color/text_light</item>
+
+        <!-- Material Components -->
+        <item name="materialButtonStyle">@style/Button.Primary</item>
+        <item name="textInputStyle">@style/TextInputStyle</item>
+        <item name="chipStyle">@style/ChipStyle</item>
+    </style>
+
+    <!-- Calculator Theme (Dark) -->
+    <style name="Theme.ShaktiAI.Calculator">
+        <item name="android:windowBackground">@color/calculator_background</item>
+        <item name="android:statusBarColor">@color/calculator_background</item>
+        <item name="android:navigationBarColor">@color/calculator_background</item>
+    </style>
+
+</resources>

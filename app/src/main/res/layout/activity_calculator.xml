@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/calculator_background"
+    tools:context=".ui.CalculatorActivity">
+
+    <!-- Top Bar with Monitoring Indicator -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:gravity="end"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <!-- Monitoring Indicator (Green dot when active) -->
+        <View
+            android:id="@+id/indicatorMonitoring"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/indicator_inactive" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Protection"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary" />
+    </LinearLayout>
+
+    <!-- Calculator Display -->
+    <TextView
+        android:id="@+id/tvDisplay"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_margin="16dp"
+        android:text="0"
+        android:textSize="48sp"
+        android:textColor="@color/text_primary"
+        android:gravity="end|center_vertical"
+        android:fontFamily="sans-serif-light"
+        android:maxLines="2"
+        android:ellipsize="end"
+        app:layout_constraintTop_toBottomOf="@id/topBar"
+        app:layout_constraintBottom_toTopOf="@id/buttonGrid"
+        app:layout_constraintHeight_percent="0.25" />
+
+    <!-- Calculator Button Grid -->
+    <GridLayout
+        android:id="@+id/buttonGrid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_margin="8dp"
+        android:columnCount="4"
+        android:rowCount="5"
+        app:layout_constraintTop_toBottomOf="@id/tvDisplay"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHeight_percent="0.65">
+
+        <!-- Row 1: AC, ⌫, %, ÷ -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnClear"
+            style="@style/CalculatorButton.Function"
+            android:text="AC"
+            android:layout_row="0"
+            android:layout_column="0" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBackspace"
+            style="@style/CalculatorButton.Function"
+            android:text="⌫"
+            android:layout_row="0"
+            android:layout_column="1" />
+
+        <com.google.android.material.button.MaterialButton
+            style="@style/CalculatorButton.Function"
+            android:text="%"
+            android:enabled="false"
+            android:layout_row="0"
+            android:layout_column="2" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDivide"
+            style="@style/CalculatorButton.Operator"
+            android:text="÷"
+            android:layout_row="0"
+            android:layout_column="3" />
+
+        <!-- Row 2: 7, 8, 9, × -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn7"
+            style="@style/CalculatorButton.Number"
+            android:text="7"
+            android:layout_row="1"
+            android:layout_column="0" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn8"
+            style="@style/CalculatorButton.Number"
+            android:text="8"
+            android:layout_row="1"
+            android:layout_column="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn9"
+            style="@style/CalculatorButton.Number"
+            android:text="9"
+            android:layout_row="1"
+            android:layout_column="2" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMultiply"
+            style="@style/CalculatorButton.Operator"
+            android:text="×"
+            android:layout_row="1"
+            android:layout_column="3" />
+
+        <!-- Row 3: 4, 5, 6, - -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn4"
+            style="@style/CalculatorButton.Number"
+            android:text="4"
+            android:layout_row="2"
+            android:layout_column="0" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn5"
+            style="@style/CalculatorButton.Number"
+            android:text="5"
+            android:layout_row="2"
+            android:layout_column="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn6"
+            style="@style/CalculatorButton.Number"
+            android:text="6"
+            android:layout_row="2"
+            android:layout_column="2" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSubtract"
+            style="@style/CalculatorButton.Operator"
+            android:text="-"
+            android:layout_row="2"
+            android:layout_column="3" />
+
+        <!-- Row 4: 1, 2, 3, + -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn1"
+            style="@style/CalculatorButton.Number"
+            android:text="1"
+            android:layout_row="3"
+            android:layout_column="0" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn2"
+            style="@style/CalculatorButton.Number"
+            android:text="2"
+            android:layout_row="3"
+            android:layout_column="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn3"
+            style="@style/CalculatorButton.Number"
+            android:text="3"
+            android:layout_row="3"
+            android:layout_column="2" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAdd"
+            style="@style/CalculatorButton.Operator"
+            android:text="+"
+            android:layout_row="3"
+            android:layout_column="3" />
+
+        <!-- Row 5: 0 (spans 2 columns), ., = -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn0"
+            style="@style/CalculatorButton.Number"
+            android:text="0"
+            android:layout_row="4"
+            android:layout_column="0"
+            android:layout_columnSpan="2"
+            android:layout_gravity="fill" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDecimal"
+            style="@style/CalculatorButton.Number"
+            android:text="."
+            android:layout_row="4"
+            android:layout_column="2" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnEquals"
+            style="@style/CalculatorButton.Operator"
+            android:text="="
+            android:layout_row="4"
+            android:layout_column="3" />
+
+    </GridLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

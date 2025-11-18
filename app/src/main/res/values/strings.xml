@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">ShaktiAI</string>
+
+    <!-- Incident Types Array -->
+    <string-array name="incident_types">
+        <item>Domestic Violence</item>
+        <item>Street Harassment</item>
+        <item>Workplace Harassment</item>
+        <item>Sextortion/Blackmail</item>
+        <item>Stalking</item>
+        <item>Strangulation</item>
+        <item>Dowry Violence</item>
+        <item>Sexual Assault</item>
+    </string-array>
+</resources>
