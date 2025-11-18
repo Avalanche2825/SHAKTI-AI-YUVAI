@@ -15,6 +15,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.shakti.ai.R
 import com.shakti.ai.ShaktiApplication
+import com.shakti.ai.ml.AudioThreatDetector
+import com.shakti.ai.ml.VoiceCommandDetector
 import com.shakti.ai.ui.CalculatorActivity
 import com.shakti.ai.utils.Constants
 import kotlinx.coroutines.*
@@ -26,6 +28,7 @@ import kotlinx.coroutines.*
  * - Real-time audio monitoring using microphone
  * - TensorFlow Lite YAMNet model for acoustic classification
  * - Scream detection with confidence threshold
+ * - Voice command detection (HELP, EMERGENCY, BACHAO)
  * - Automatic evidence recording trigger
  * - Low battery impact (optimized sampling)
  */
@@ -38,8 +41,11 @@ class AudioDetectionService : Service() {
     private var isRecording = false
     private val audioBuffer = ShortArray(Constants.AUDIO_BUFFER_SIZE)
 
-    // ML Model - TODO: Initialize when AudioThreatDetector is implemented
-    // private lateinit var threatDetector: AudioThreatDetector
+    // ML Model
+    private var threatDetector: AudioThreatDetector? = null
+
+    // Voice Command Detector (NEW)
+    private var voiceCommandDetector: VoiceCommandDetector? = null
 
     // Detection state
     private var consecutiveThreats = 0
@@ -50,6 +56,8 @@ class AudioDetectionService : Service() {
         const val ACTION_START_MONITORING = "START_MONITORING"
         const val ACTION_STOP_MONITORING = "STOP_MONITORING"
         const val ACTION_MANUAL_SOS = "MANUAL_SOS"
+        const val ACTION_ENABLE_VOICE_COMMANDS = "ENABLE_VOICE_COMMANDS"
+        const val ACTION_DISABLE_VOICE_COMMANDS = "DISABLE_VOICE_COMMANDS"
 
         const val NOTIFICATION_ID = 1001
         private const val SAMPLE_RATE = Constants.AUDIO_SAMPLE_RATE
@@ -62,7 +70,12 @@ class AudioDetectionService : Service() {
         Log.d(TAG, "Audio Detection Service Created")
 
         // Initialize ML model
-        // threatDetector = AudioThreatDetector(this)
+        try {
+            threatDetector = AudioThreatDetector(this)
+            Log.d(TAG, "ThreatDetector initialized successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize ThreatDetector", e)
+        }
 
         // Start as foreground service
         startForeground(NOTIFICATION_ID, createNotification("Monitoring active"))
@@ -73,10 +86,35 @@ class AudioDetectionService : Service() {
             ACTION_START_MONITORING -> startMonitoring()
             ACTION_STOP_MONITORING -> stopMonitoring()
             ACTION_MANUAL_SOS -> triggerManualSOS()
+            ACTION_ENABLE_VOICE_COMMANDS -> enableVoiceCommands()
+            ACTION_DISABLE_VOICE_COMMANDS -> disableVoiceCommands()
             else -> startMonitoring()
         }
 
         return START_STICKY
+    }
+
+    /**
+     * Enable voice command detection
+     */
+    private fun enableVoiceCommands() {
+        if (voiceCommandDetector == null) {
+            voiceCommandDetector = VoiceCommandDetector()
+            voiceCommandDetector?.startListening { command ->
+                Log.w(TAG, "Voice command detected: $command")
+                onThreatDetected(1.0f) // Trigger emergency with max confidence
+            }
+            updateNotification("Voice commands enabled - Say 'HELP' 3 times")
+        }
+    }
+
+    /**
+     * Disable voice command detection
+     */
+    private fun disableVoiceCommands() {
+        voiceCommandDetector?.stopListening()
+        voiceCommandDetector = null
+        updateNotification("Voice commands disabled")
     }
 
     /**
@@ -174,17 +212,19 @@ class AudioDetectionService : Service() {
 
     /**
      * Detect threat using ML model
-     * TODO: Replace with actual AudioThreatDetector when implemented
      */
     private fun detectThreat(audioData: FloatArray): Float {
-        // Placeholder: Simulate threat detection based on audio amplitude
-        val amplitude = audioData.map { kotlin.math.abs(it) }.average().toFloat()
-
-        // TODO: Replace with actual TFLite model inference
-        // return threatDetector.detectThreat(audioData)
-
-        // For now, return amplitude as confidence (0.0 to 1.0)
-        return amplitude.coerceIn(0.0f, 1.0f)
+        // Use actual TFLite model if available
+        return try {
+            threatDetector?.detectThreat(audioData) ?: run {
+                // Fallback: use amplitude-based detection
+                val amplitude = audioData.map { kotlin.math.abs(it) }.average().toFloat()
+                amplitude.coerceIn(0.0f, 1.0f)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in threat detection", e)
+            0.0f
+        }
     }
 
     /**
@@ -316,7 +356,12 @@ class AudioDetectionService : Service() {
         stopMonitoring()
         serviceScope.cancel()
 
-        // TODO: Close ML model when implemented
-        // threatDetector.close()
+        // Close ML model
+        threatDetector?.close()
+        threatDetector = null
+
+        // Stop voice command detector
+        voiceCommandDetector?.stopListening()
+        voiceCommandDetector = null
     }
 }

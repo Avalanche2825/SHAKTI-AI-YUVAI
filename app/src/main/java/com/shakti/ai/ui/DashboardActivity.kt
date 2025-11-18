@@ -19,6 +19,7 @@ import java.util.*
  * - Quick access to NYAY Legal, Escape Planner
  * - Safety statistics
  * - Emergency contacts management
+ * - AI Monitoring Dashboard (NEW)
  */
 class DashboardActivity : AppCompatActivity() {
 
@@ -54,6 +55,11 @@ class DashboardActivity : AppCompatActivity() {
      * Setup quick action buttons
      */
     private fun setupQuickActions() {
+        // AI Monitoring Dashboard (NEW)
+        binding.cardAiMonitoring.setOnClickListener {
+            startActivity(Intent(this, AIMonitoringActivity::class.java))
+        }
+
         // NYAY Legal Assistant
         binding.cardNyayLegal.setOnClickListener {
             startActivity(Intent(this, NyayLegalActivity::class.java))
