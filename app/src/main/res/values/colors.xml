@@ -1,66 +1,110 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Primary Colors -->
-    <color name="primary">#1E88E5</color>
-    <color name="primary_dark">#1565C0</color>
-    <color name="primary_light">#64B5F6</color>
-    <color name="accent">#FF5252</color>
+    <!-- Primary Brand Colors - Modern Purple/Pink Gradient Theme -->
+    <color name="primary">#7C3AED</color>
+    <color name="primary_dark">#5B21B6</color>
+    <color name="primary_light">#A78BFA</color>
+    <color name="accent">#EC4899</color>
+    <color name="accent_light">#F9A8D4</color>
 
-    <!-- Background Colors -->
+    <!-- Secondary Colors -->
+    <color name="secondary">#10B981</color>
+    <color name="secondary_dark">#059669</color>
+    <color name="secondary_light">#6EE7B7</color>
+
+    <!-- Background Colors - Modern Gradient Scheme -->
     <color name="calculator_background">#1C1C1E</color>
-    <color name="background_primary">#FFFFFF</color>
-    <color name="background_secondary">#F5F5F5</color>
+    <color name="background_primary">#F9FAFB</color>
+    <color name="background_secondary">#F3F4F6</color>
     <color name="surface">#FFFFFF</color>
+    <color name="surface_elevated">#FFFFFF</color>
 
-    <!-- Text Colors -->
+    <!-- Gradient Colors -->
+    <color name="gradient_start">#7C3AED</color>
+    <color name="gradient_middle">#A855F7</color>
+    <color name="gradient_end">#EC4899</color>
+
+    <color name="gradient_success_start">#10B981</color>
+    <color name="gradient_success_end">#34D399</color>
+
+    <color name="gradient_warning_start">#F59E0B</color>
+    <color name="gradient_warning_end">#FBBF24</color>
+
+    <color name="gradient_danger_start">#EF4444</color>
+    <color name="gradient_danger_end">#F87171</color>
+
+    <!-- Text Colors - Better Hierarchy -->
     <color name="text_primary">#FFFFFF</color>
     <color name="text_secondary">#B0B0B0</color>
-    <color name="text_dark">#212121</color>
-    <color name="text_light">#757575</color>
+    <color name="text_dark">#111827</color>
+    <color name="text_medium">#4B5563</color>
+    <color name="text_light">#9CA3AF</color>
+    <color name="text_lighter">#D1D5DB</color>
 
     <!-- Button Colors -->
     <color name="button_number">#2C2C2E</color>
     <color name="button_operator">#FF9500</color>
     <color name="button_function">#505050</color>
 
-    <!-- Status Colors -->
-    <color name="success">#4CAF50</color>
-    <color name="success_light">#E8F5E9</color>
-    <color name="error">#F44336</color>
-    <color name="error_light">#FFEBEE</color>
-    <color name="warning">#FF9800</color>
-    <color name="warning_light">#FFF3E0</color>
-    <color name="info">#2196F3</color>
-    <color name="info_light">#E3F2FD</color>
+    <!-- Status Colors - Modern Palette -->
+    <color name="success">#10B981</color>
+    <color name="success_light">#D1FAE5</color>
+    <color name="success_bg">#ECFDF5</color>
+
+    <color name="error">#EF4444</color>
+    <color name="error_light">#FEE2E2</color>
+    <color name="error_bg">#FEF2F2</color>
+
+    <color name="warning">#F59E0B</color>
+    <color name="warning_light">#FDE68A</color>
+    <color name="warning_bg">#FFFBEB</color>
+
+    <color name="info">#3B82F6</color>
+    <color name="info_light">#BFDBFE</color>
+    <color name="info_bg">#EFF6FF</color>
 
     <!-- Monitoring Indicators -->
-    <color name="indicator_active">#4CAF50</color>
-    <color name="indicator_inactive">#757575</color>
-    <color name="indicator_warning">#FF9800</color>
-    <color name="indicator_danger">#F44336</color>
+    <color name="indicator_active">#10B981</color>
+    <color name="indicator_inactive">#9CA3AF</color>
+    <color name="indicator_warning">#F59E0B</color>
+    <color name="indicator_danger">#EF4444</color>
 
     <!-- Threat Levels -->
-    <color name="threat_low">#4CAF50</color>
-    <color name="threat_medium">#FF9800</color>
-    <color name="threat_high">#FF5252</color>
-    <color name="threat_critical">#D32F2F</color>
+    <color name="threat_low">#10B981</color>
+    <color name="threat_medium">#F59E0B</color>
+    <color name="threat_high">#EF4444</color>
+    <color name="threat_critical">#DC2626</color>
 
-    <!-- Card Colors -->
+    <!-- Card Colors - Soft Pastel Backgrounds -->
     <color name="card_background">#FFFFFF</color>
-    <color name="card_border">#E0E0E0</color>
+    <color name="card_border">#E5E7EB</color>
+    <color name="card_shadow">#1A000000</color>
 
-    <!-- Card Background Colors (for visual differentiation) -->
-    <color name="bg_1">#F1F8FF</color>
-    <color name="bg_2">#FFF4E6</color>
-    <color name="bg_3">#F0FFF4</color>
-    <color name="bg_4">#FFF0F5</color>
+    <!-- Feature Card Backgrounds (Subtle Gradients) -->
+    <color name="bg_purple_light">#F3E8FF</color>
+    <color name="bg_pink_light">#FCE7F3</color>
+    <color name="bg_blue_light">#DBEAFE</color>
+    <color name="bg_green_light">#D1FAE5</color>
+    <color name="bg_yellow_light">#FEF3C7</color>
+    <color name="bg_orange_light">#FFEDD5</color>
+
+    <!-- Chat UI Colors -->
+    <color name="chat_user_message">#7C3AED</color>
+    <color name="chat_ai_message">#F3F4F6</color>
+    <color name="chat_input_bg">#FFFFFF</color>
+    <color name="chat_divider">#E5E7EB</color>
 
     <!-- Misc -->
-    <color name="divider">#BDBDBD</color>
+    <color name="divider">#E5E7EB</color>
     <color name="overlay">#80000000</color>
+    <color name="overlay_light">#40000000</color>
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
     <color name="transparent">#00000000</color>
+
+    <!-- Shimmer Effect -->
+    <color name="shimmer_base">#F0F0F0</color>
+    <color name="shimmer_highlight">#E0E0E0</color>
 
     <!-- Legacy Material Colors (for compatibility) -->
     <color name="purple_200">#FFBB86FC</color>

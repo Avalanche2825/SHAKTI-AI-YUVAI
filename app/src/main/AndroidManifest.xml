@@ -123,6 +123,19 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <!-- AI Monitoring Activity -->
+        <activity
+            android:name=".ui.AIMonitoringActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!-- AI Chatbot Activity (NEW) -->
+        <activity
+            android:name=".ui.AIChatbotActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- Audio Detection Service -->
         <service
             android:name=".services.AudioDetectionService"

@@ -20,6 +20,7 @@ import com.shakti.ai.utils.PermissionsHelper
  * - Secret codes to access dashboard (999=), SOS (911=), settings (777=)
  * - Visual monitoring indicator (green dot when active)
  * - Starts audio detection service in background
+ * - Voice commands enabled by default (say "HELP" 3 times for emergency)
  */
 class CalculatorActivity : AppCompatActivity() {
 
@@ -291,7 +292,11 @@ class CalculatorActivity : AppCompatActivity() {
 
         if (isMonitoring) {
             startMonitoring()
-            Toast.makeText(this, "Protection Active", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "Protection Active\nSay 'HELP' 3× for emergency",
+                Toast.LENGTH_LONG
+            ).show()
         } else {
             stopMonitoring()
             Toast.makeText(this, "Protection Paused", Toast.LENGTH_SHORT).show()
@@ -302,10 +307,11 @@ class CalculatorActivity : AppCompatActivity() {
     }
 
     /**
-     * Start audio detection service
+     * Start audio detection service with voice commands enabled
      */
     private fun startMonitoring() {
         val intent = Intent(this, AudioDetectionService::class.java)
+        intent.action = AudioDetectionService.ACTION_START_MONITORING
         ContextCompat.startForegroundService(this, intent)
     }
 
@@ -314,6 +320,7 @@ class CalculatorActivity : AppCompatActivity() {
      */
     private fun stopMonitoring() {
         val intent = Intent(this, AudioDetectionService::class.java)
+        intent.action = AudioDetectionService.ACTION_STOP_MONITORING
         stopService(intent)
     }
 
@@ -339,7 +346,7 @@ class CalculatorActivity : AppCompatActivity() {
     private fun triggerSOS() {
         // Immediately start recording and alert
         val intent = Intent(this, AudioDetectionService::class.java)
-        intent.action = "MANUAL_SOS"
+        intent.action = AudioDetectionService.ACTION_MANUAL_SOS
         ContextCompat.startForegroundService(this, intent)
 
         Toast.makeText(this, "SOS Activated", Toast.LENGTH_SHORT).show()

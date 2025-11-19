@@ -5,6 +5,11 @@
         name="internal_files"
         path="." />
 
+    <!-- Hidden evidence storage (internal) -->
+    <files-path
+        name="hidden_storage"
+        path=".system_cache/" />
+
     <!-- Cache directory -->
     <cache-path
         name="cache"

@@ -20,6 +20,7 @@ import java.util.*
  * - Safety statistics
  * - Emergency contacts management
  * - AI Monitoring Dashboard (NEW)
+ * - AI Chatbot Assistant (NEW)
  */
 class DashboardActivity : AppCompatActivity() {
 
@@ -83,6 +84,19 @@ class DashboardActivity : AppCompatActivity() {
         // Emergency SOS
         binding.btnEmergencySOS.setOnClickListener {
             triggerEmergencySOS()
+        }
+
+        // AI Chatbot (NEW) - Check if card exists, if not will be added via layout
+        try {
+            val cardChatbot =
+                binding.root.findViewById<com.google.android.material.card.MaterialCardView>(
+                    resources.getIdentifier("cardAiChatbot", "id", packageName)
+                )
+            cardChatbot?.setOnClickListener {
+                startActivity(Intent(this, AIChatbotActivity::class.java))
+            }
+        } catch (e: Exception) {
+            // Card not in layout yet, will be added
         }
     }
 

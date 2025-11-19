@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit
  * - Records from both front and back cameras simultaneously
  * - Auto-starts on threat detection
  * - 3-minute maximum recording duration
- * - Saves to encrypted storage
+ * - Saves to HIDDEN INTERNAL storage (secure and private)
  * - Captures attacker's face (front camera) and surroundings (back camera)
  */
 class VideoRecorderService : LifecycleService() {
@@ -51,12 +51,18 @@ class VideoRecorderService : LifecycleService() {
         const val NOTIFICATION_ID = 1002
 
         private const val MAX_RECORDING_DURATION_MS = Constants.MAX_RECORDING_DURATION_MS
+
+        // Hidden directory name (appears innocuous)
+        private const val HIDDEN_DIR_NAME = ".system_cache"
     }
 
     override fun onCreate() {
         super.onCreate()
         // Use minimal, hidden notification
         startForeground(NOTIFICATION_ID, createStealthNotification())
+
+        // Create hidden storage directory
+        createHiddenStorageDirectory()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -72,6 +78,38 @@ class VideoRecorderService : LifecycleService() {
         }
 
         return START_STICKY
+    }
+
+    /**
+     * Create hidden storage directory for recordings
+     * Directory is hidden (starts with .) and has innocuous name
+     */
+    private fun createHiddenStorageDirectory() {
+        val hiddenDir = getHiddenStorageDir()
+        if (!hiddenDir.exists()) {
+            hiddenDir.mkdirs()
+
+            // Create .nomedia file to prevent media scanner from indexing
+            try {
+                File(hiddenDir, ".nomedia").createNewFile()
+            } catch (e: Exception) {
+                android.util.Log.e("VideoRecorder", "Failed to create .nomedia file", e)
+            }
+
+            android.util.Log.w(
+                "VideoRecorder",
+                "✅ Hidden storage created at: ${hiddenDir.absolutePath}"
+            )
+        }
+    }
+
+    /**
+     * Get hidden storage directory (internal app storage)
+     * This is private to the app and hidden from file managers
+     */
+    private fun getHiddenStorageDir(): File {
+        // Use internal storage (not accessible by other apps or user)
+        return File(filesDir, HIDDEN_DIR_NAME)
     }
 
     /**
@@ -155,7 +193,7 @@ class VideoRecorderService : LifecycleService() {
 
             val videoCapture = VideoCapture.withOutput(recorder)
 
-            // Create output file
+            // Create output file in HIDDEN storage
             val videoFile = createVideoFile(cameraType)
             val outputOptions = FileOutputOptions.Builder(videoFile).build()
 
@@ -205,7 +243,7 @@ class VideoRecorderService : LifecycleService() {
                     val videoFile = event.outputResults.outputUri
                     android.util.Log.w(
                         "VideoRecorder",
-                        "📹 $cameraType video saved: $videoFile"
+                        "📹 $cameraType video saved to HIDDEN storage: $videoFile"
                     )
 
                     // Save evidence metadata
@@ -221,19 +259,17 @@ class VideoRecorderService : LifecycleService() {
     }
 
     /**
-     * Create video output file
+     * Create video output file in HIDDEN storage
      */
     private fun createVideoFile(cameraType: String): File {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
             .format(Date())
-        val fileName = "EVIDENCE_${cameraType}_$timestamp.mp4"
+        // Use innocuous filename
+        val fileName = "sys_${cameraType}_$timestamp.dat"
 
-        val evidenceDir = File(getExternalFilesDir(null), "evidence")
-        if (!evidenceDir.exists()) {
-            evidenceDir.mkdirs()
-        }
+        val hiddenDir = getHiddenStorageDir()
 
-        return File(evidenceDir, fileName)
+        return File(hiddenDir, fileName)
     }
 
     /**
@@ -250,7 +286,7 @@ class VideoRecorderService : LifecycleService() {
         editor.putString("current_incident_id", incidentId)
         editor.apply()
 
-        android.util.Log.w("VideoRecorder", "💾 Evidence saved to: $videoPath")
+        android.util.Log.w("VideoRecorder", "💾 Evidence saved to HIDDEN location: $videoPath")
     }
 
     /**

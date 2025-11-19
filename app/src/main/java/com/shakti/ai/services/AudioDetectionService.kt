@@ -31,9 +31,10 @@ import java.util.*
  * - Real-time audio monitoring using microphone
  * - TensorFlow Lite YAMNet model for acoustic classification
  * - Scream detection with confidence threshold
- * - Voice command detection (HELP, EMERGENCY, BACHAO)
+ * - Voice command detection (HELP, EMERGENCY, BACHAO) - 3x trigger
  * - Automatic evidence recording trigger
  * - Low battery impact (optimized sampling)
+ * - Saves all recordings to HIDDEN internal storage
  */
 class AudioDetectionService : Service() {
 
@@ -47,12 +48,16 @@ class AudioDetectionService : Service() {
     // ML Model
     private var threatDetector: AudioThreatDetector? = null
 
-    // Voice Command Detector (NEW)
+    // Voice Command Detector - NOW ENABLED BY DEFAULT
     private var voiceCommandDetector: VoiceCommandDetector? = null
+    private var voiceCommandsEnabled = true // Default to enabled
 
     // Detection state
     private var consecutiveThreats = 0
     private val THREAT_CONFIRMATION_COUNT = 3 // Need 3 consecutive detections
+
+    // Hidden storage directory
+    private val HIDDEN_DIR_NAME = ".system_cache"
 
     companion object {
         private const val TAG = "AudioDetectionService"
@@ -80,8 +85,37 @@ class AudioDetectionService : Service() {
             Log.e(TAG, "Failed to initialize ThreatDetector", e)
         }
 
+        // Create hidden storage directory
+        createHiddenStorageDirectory()
+
         // Start as foreground service
         startForeground(NOTIFICATION_ID, createNotification("Monitoring active"))
+    }
+
+    /**
+     * Create hidden storage directory for audio recordings
+     */
+    private fun createHiddenStorageDirectory() {
+        val hiddenDir = getHiddenStorageDir()
+        if (!hiddenDir.exists()) {
+            hiddenDir.mkdirs()
+
+            // Create .nomedia file to prevent media scanner
+            try {
+                File(hiddenDir, ".nomedia").createNewFile()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create .nomedia file", e)
+            }
+
+            Log.w(TAG, " Hidden audio storage created at: ${hiddenDir.absolutePath}")
+        }
+    }
+
+    /**
+     * Get hidden storage directory (internal app storage)
+     */
+    private fun getHiddenStorageDir(): File {
+        return File(filesDir, HIDDEN_DIR_NAME)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -102,12 +136,14 @@ class AudioDetectionService : Service() {
      */
     private fun enableVoiceCommands() {
         if (voiceCommandDetector == null) {
+            voiceCommandsEnabled = true
             voiceCommandDetector = VoiceCommandDetector()
             voiceCommandDetector?.startListening { command ->
-                Log.w(TAG, "Voice command detected: $command")
+                Log.w(TAG, " Voice command detected: $command (HELP said 3 times!)")
                 onThreatDetected(1.0f) // Trigger emergency with max confidence
             }
             updateNotification("Voice commands enabled - Say 'HELP' 3 times")
+            Log.w(TAG, " Voice commands ENABLED - Say 'HELP' 3 times to trigger SOS")
         }
     }
 
@@ -115,9 +151,11 @@ class AudioDetectionService : Service() {
      * Disable voice command detection
      */
     private fun disableVoiceCommands() {
+        voiceCommandsEnabled = false
         voiceCommandDetector?.stopListening()
         voiceCommandDetector = null
         updateNotification("Voice commands disabled")
+        Log.w(TAG, "Voice commands disabled")
     }
 
     /**
@@ -151,13 +189,18 @@ class AudioDetectionService : Service() {
             audioRecord?.startRecording()
             isRecording = true
 
+            // Enable voice commands by default
+            if (voiceCommandsEnabled && voiceCommandDetector == null) {
+                enableVoiceCommands()
+            }
+
             // Start audio processing in coroutine
             serviceScope.launch {
                 processAudioStream()
             }
 
-            updateNotification("Protection active - Listening")
-            Log.d(TAG, "Audio monitoring started successfully")
+            updateNotification("Protection active - Voice commands enabled")
+            Log.d(TAG, " Audio monitoring started - HELP 3x feature active")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start audio monitoring", e)
@@ -302,13 +345,24 @@ class AudioDetectionService : Service() {
     }
 
     /**
-     * Start separate audio recording (backup evidence)
+     * Start separate audio recording (backup evidence) in HIDDEN storage
      */
     private fun startAudioRecording(incidentId: String) {
         serviceScope.launch(Dispatchers.IO) {
+            var recorder: MediaRecorder? = null
             try {
                 val audioFile = createAudioFile(incidentId)
-                val recorder = MediaRecorder().apply {
+
+                // Create MediaRecorder
+                recorder =
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        MediaRecorder(this@AudioDetectionService)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        MediaRecorder()
+                    }
+
+                recorder.apply {
                     setAudioSource(MediaRecorder.AudioSource.MIC)
                     setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                     setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -317,9 +371,9 @@ class AudioDetectionService : Service() {
                     start()
                 }
 
-                Log.w(TAG, "🎤 Audio recording to: ${audioFile.absolutePath}")
+                Log.w(TAG, " Audio recording to HIDDEN storage: ${audioFile.absolutePath}")
 
-                // Save recorder reference for later stop
+                // Save recorder reference
                 val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
                 prefs.edit()
                     .putString("incident_${incidentId}_audio", audioFile.absolutePath)
@@ -329,26 +383,30 @@ class AudioDetectionService : Service() {
                 delay(Constants.MAX_RECORDING_DURATION_MS)
                 recorder.stop()
                 recorder.release()
+                Log.w(TAG, " Audio recording stopped and saved to HIDDEN storage")
 
             } catch (e: Exception) {
                 Log.e(TAG, "Audio recording error", e)
+                try {
+                    recorder?.release()
+                } catch (ex: Exception) {
+                    Log.e(TAG, "Failed to release recorder", ex)
+                }
             }
         }
     }
 
     /**
-     * Create audio evidence file
+     * Create audio evidence file in HIDDEN storage
      */
     private fun createAudioFile(incidentId: String): File {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val fileName = "AUDIO_${incidentId}_$timestamp.m4a"
+        // Use innocuous filename
+        val fileName = "sys_audio_${incidentId}_$timestamp.dat"
 
-        val evidenceDir = File(getExternalFilesDir(null), "evidence")
-        if (!evidenceDir.exists()) {
-            evidenceDir.mkdirs()
-        }
+        val hiddenDir = getHiddenStorageDir()
 
-        return File(evidenceDir, fileName)
+        return File(hiddenDir, fileName)
     }
 
     /**
@@ -378,10 +436,10 @@ class AudioDetectionService : Service() {
     }
 
     /**
-     * Handle manual SOS trigger (from secret code 911=)
+     * Handle manual SOS trigger (from secret code 911= or voice command)
      */
     private fun triggerManualSOS() {
-        Log.w(TAG, "Manual SOS triggered")
+        Log.w(TAG, " Manual SOS triggered (from secret code or voice command)")
         onThreatDetected(1.0f) // Max confidence for manual trigger
     }
 
@@ -396,6 +454,10 @@ class AudioDetectionService : Service() {
         audioRecord?.release()
         audioRecord = null
         consecutiveThreats = 0
+
+        // Stop voice commands
+        voiceCommandDetector?.stopListening()
+        voiceCommandDetector = null
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -417,8 +479,8 @@ class AudioDetectionService : Service() {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW) // Changed to PRIORITY_LOW
-            .setSilent(true) // Added setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW) // Low priority for stealth
+            .setSilent(true) // Silent
             .build()
     }
 
