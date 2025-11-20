@@ -88,6 +88,12 @@
     <color name="bg_yellow_light">#FEF3C7</color>
     <color name="bg_orange_light">#FFEDD5</color>
 
+    <!-- Background Colors for Cards/Sections -->
+    <color name="bg_1">#F3E8FF</color>
+    <color name="bg_2">#DBEAFE</color>
+    <color name="bg_3">#D1FAE5</color>
+    <color name="bg_4">#FFEDD5</color>
+
     <!-- Chat UI Colors -->
     <color name="chat_user_message">#7C3AED</color>
     <color name="chat_ai_message">#F3F4F6</color>

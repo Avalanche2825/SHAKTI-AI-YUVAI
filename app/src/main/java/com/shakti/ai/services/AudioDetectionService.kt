@@ -6,8 +6,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioFormat
-import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.IBinder
 import android.util.Log
@@ -15,8 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.shakti.ai.R
 import com.shakti.ai.ShaktiApplication
-import com.shakti.ai.ml.AudioThreatDetector
-import com.shakti.ai.ml.VoiceCommandDetector
+import com.shakti.ai.ml.HelpWordDetector
 import com.shakti.ai.ui.CalculatorActivity
 import com.shakti.ai.utils.Constants
 import kotlinx.coroutines.*
@@ -40,21 +37,9 @@ class AudioDetectionService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    // Audio components
-    private var audioRecord: AudioRecord? = null
-    private var isRecording = false
-    private val audioBuffer = ShortArray(Constants.AUDIO_BUFFER_SIZE)
-
-    // ML Model
-    private var threatDetector: AudioThreatDetector? = null
-
-    // Voice Command Detector - NOW ENABLED BY DEFAULT
-    private var voiceCommandDetector: VoiceCommandDetector? = null
-    private var voiceCommandsEnabled = true // Default to enabled
-
-    // Detection state
-    private var consecutiveThreats = 0
-    private val THREAT_CONFIRMATION_COUNT = 3 // Need 3 consecutive detections
+    // HELP Word Detector - Primary audio monitoring (handles its own AudioRecord)
+    private var helpWordDetector: HelpWordDetector? = null
+    private var helpDetectionEnabled = true // Default to enabled
 
     // Hidden storage directory
     private val HIDDEN_DIR_NAME = ".system_cache"
@@ -68,28 +53,17 @@ class AudioDetectionService : Service() {
         const val ACTION_DISABLE_VOICE_COMMANDS = "DISABLE_VOICE_COMMANDS"
 
         const val NOTIFICATION_ID = 1001
-        private const val SAMPLE_RATE = Constants.AUDIO_SAMPLE_RATE
-        private const val CHANNEL_SIZE = AudioFormat.CHANNEL_IN_MONO
-        private const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
     }
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Audio Detection Service Created")
-
-        // Initialize ML model
-        try {
-            threatDetector = AudioThreatDetector(this)
-            Log.d(TAG, "ThreatDetector initialized successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize ThreatDetector", e)
-        }
+        Log.d(TAG, "✅ Audio Detection Service Created")
 
         // Create hidden storage directory
         createHiddenStorageDirectory()
 
         // Start as foreground service
-        startForeground(NOTIFICATION_ID, createNotification("Monitoring active"))
+        startForeground(NOTIFICATION_ID, createNotification("Starting protection..."))
     }
 
     /**
@@ -132,153 +106,69 @@ class AudioDetectionService : Service() {
     }
 
     /**
-     * Enable voice command detection
+     * Enable HELP word detection (dedicated detector)
      */
     private fun enableVoiceCommands() {
-        if (voiceCommandDetector == null) {
-            voiceCommandsEnabled = true
-            voiceCommandDetector = VoiceCommandDetector()
-            voiceCommandDetector?.startListening { command ->
-                Log.w(TAG, " Voice command detected: $command (HELP said 3 times!)")
+        if (helpWordDetector == null) {
+            helpDetectionEnabled = true
+            helpWordDetector = HelpWordDetector(this)
+
+            // Set sensitivity from preferences (default 0.40 = 40%)
+            val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+            val sensitivity = prefs.getFloat("help_detection_sensitivity", 0.40f)
+            helpWordDetector?.setSensitivity(sensitivity)
+
+            helpWordDetector?.startListening {
+                Log.w(TAG, "🚨 HELP WORD DETECTED 3 TIMES - Triggering emergency!")
                 onThreatDetected(1.0f) // Trigger emergency with max confidence
             }
-            updateNotification("Voice commands enabled - Say 'HELP' 3 times")
-            Log.w(TAG, " Voice commands ENABLED - Say 'HELP' 3 times to trigger SOS")
+
+            updateNotification("HELP detection active - Say 'HELP' 3 times")
+            Log.w(
+                TAG,
+                "✅ HELP word detector ENABLED (dedicated detector, sensitivity: ${(sensitivity * 100).toInt()}%)"
+            )
         }
     }
 
     /**
-     * Disable voice command detection
+     * Disable HELP word detection
      */
     private fun disableVoiceCommands() {
-        voiceCommandsEnabled = false
-        voiceCommandDetector?.stopListening()
-        voiceCommandDetector = null
-        updateNotification("Voice commands disabled")
-        Log.w(TAG, "Voice commands disabled")
+        helpDetectionEnabled = false
+        helpWordDetector?.stopListening()
+        helpWordDetector = null
+        updateNotification("HELP detection disabled")
+        Log.w(TAG, "HELP word detector disabled")
     }
 
     /**
-     * Start audio monitoring
+     * Start audio monitoring - NOW USING ONLY HelpWordDetector
      */
     private fun startMonitoring() {
-        if (isRecording) return
-
-        Log.d(TAG, "Starting audio monitoring")
+        Log.d(TAG, "🎤 Starting audio monitoring with HelpWordDetector")
 
         // Check permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.e(TAG, "Audio permission not granted")
+            Log.e(TAG, "❌ Audio permission not granted")
             stopSelf()
             return
         }
 
         try {
-            val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_SIZE, ENCODING)
-
-            audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.MIC,
-                SAMPLE_RATE,
-                CHANNEL_SIZE,
-                ENCODING,
-                bufferSize
-            )
-
-            audioRecord?.startRecording()
-            isRecording = true
-
-            // Enable voice commands by default
-            if (voiceCommandsEnabled && voiceCommandDetector == null) {
+            // Enable HELP word detection - this handles ALL audio monitoring
+            if (helpDetectionEnabled && helpWordDetector == null) {
                 enableVoiceCommands()
             }
 
-            // Start audio processing in coroutine
-            serviceScope.launch {
-                processAudioStream()
-            }
-
-            updateNotification("Protection active - Voice commands enabled")
-            Log.d(TAG, " Audio monitoring started - HELP 3x feature active")
+            updateNotification("🎤 Protection active - Listening for HELP")
+            Log.d(TAG, "✅ Audio monitoring started - HELP detector active")
 
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start audio monitoring", e)
+            Log.e(TAG, "❌ Failed to start audio monitoring", e)
             stopSelf()
-        }
-    }
-
-    /**
-     * Process audio stream and detect threats
-     */
-    private suspend fun processAudioStream() = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Audio processing loop started")
-
-        while (isRecording) {
-            try {
-                // Read audio data
-                val readSize = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
-
-                if (readSize > 0) {
-                    // Convert to float array for ML model
-                    val floatAudio = convertToFloatArray(audioBuffer)
-
-                    // Run threat detection
-                    val threatConfidence = detectThreat(floatAudio)
-
-                    // Check if threat detected
-                    if (threatConfidence > Constants.SCREAM_CONFIDENCE_THRESHOLD) {
-                        consecutiveThreats++
-
-                        Log.d(
-                            TAG,
-                            "Potential threat detected: $threatConfidence (count: $consecutiveThreats)"
-                        )
-
-                        // Require multiple consecutive detections to reduce false positives
-                        if (consecutiveThreats >= THREAT_CONFIRMATION_COUNT) {
-                            onThreatDetected(threatConfidence)
-                            consecutiveThreats = 0 // Reset counter
-                        }
-                    } else {
-                        consecutiveThreats = 0 // Reset on non-threat
-                    }
-                }
-
-                // Small delay to reduce CPU usage
-                delay(100) // Process every 100ms
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Error processing audio", e)
-            }
-        }
-
-        Log.d(TAG, "Audio processing loop ended")
-    }
-
-    /**
-     * Detect threat using ML model
-     */
-    private fun detectThreat(audioData: FloatArray): Float {
-        // Use actual TFLite model if available
-        return try {
-            threatDetector?.detectThreat(audioData) ?: run {
-                // Fallback: use amplitude-based detection
-                val amplitude = audioData.map { kotlin.math.abs(it) }.average().toFloat()
-                amplitude.coerceIn(0.0f, 1.0f)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in threat detection", e)
-            0.0f
-        }
-    }
-
-    /**
-     * Convert short audio samples to float (-1.0 to 1.0)
-     */
-    private fun convertToFloatArray(shorts: ShortArray): FloatArray {
-        return FloatArray(shorts.size) { i ->
-            shorts[i] / 32768.0f // Normalize to -1.0 to 1.0
         }
     }
 
@@ -447,17 +337,11 @@ class AudioDetectionService : Service() {
      * Stop monitoring
      */
     private fun stopMonitoring() {
-        Log.d(TAG, "Stopping audio monitoring")
+        Log.d(TAG, "🛑 Stopping audio monitoring")
 
-        isRecording = false
-        audioRecord?.stop()
-        audioRecord?.release()
-        audioRecord = null
-        consecutiveThreats = 0
-
-        // Stop voice commands
-        voiceCommandDetector?.stopListening()
-        voiceCommandDetector = null
+        // Stop HELP word detector
+        helpWordDetector?.stopListening()
+        helpWordDetector = null
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -503,12 +387,8 @@ class AudioDetectionService : Service() {
         stopMonitoring()
         serviceScope.cancel()
 
-        // Close ML model
-        threatDetector?.close()
-        threatDetector = null
-
-        // Stop voice command detector
-        voiceCommandDetector?.stopListening()
-        voiceCommandDetector = null
+        // Stop HELP word detector
+        helpWordDetector?.stopListening()
+        helpWordDetector = null
     }
 }

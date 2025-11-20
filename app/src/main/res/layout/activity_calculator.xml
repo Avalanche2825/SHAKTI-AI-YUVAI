@@ -17,6 +17,40 @@
         android:gravity="end"
         app:layout_constraintTop_toTopOf="parent">
 
+        <!-- HELP Detection Dots (3 dots that turn green) -->
+        <LinearLayout
+            android:id="@+id/helpDetectionIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginEnd="12dp"
+            android:visibility="gone">
+
+            <!-- Dot 1 -->
+            <View
+                android:id="@+id/helpDot1"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/help_dot_inactive" />
+
+            <!-- Dot 2 -->
+            <View
+                android:id="@+id/helpDot2"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/help_dot_inactive" />
+
+            <!-- Dot 3 -->
+            <View
+                android:id="@+id/helpDot3"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/help_dot_inactive" />
+        </LinearLayout>
+
         <!-- Monitoring Indicator (Green dot when active) -->
         <View
             android:id="@+id/indicatorMonitoring"

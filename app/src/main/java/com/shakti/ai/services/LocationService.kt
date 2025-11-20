@@ -7,8 +7,10 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Address
 import android.location.Geocoder
 import android.location.Location
+import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
@@ -143,15 +145,26 @@ class LocationService : Service() {
     private fun getAddressFromLocation(latitude: Double, longitude: Double): String? {
         return try {
             val geocoder = Geocoder(this, Locale.getDefault())
-            val addresses = geocoder.getFromLocation(latitude, longitude, 1)
 
-            if (!addresses.isNullOrEmpty()) {
-                val address = addresses[0]
-                buildString {
-                    address.getAddressLine(0)?.let { append(it) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Use new API for Android 13+
+                var addressResult: String? = null
+                geocoder.getFromLocation(latitude, longitude, 1) { addresses ->
+                    if (addresses.isNotEmpty()) {
+                        addressResult = addresses[0].getAddressLine(0)
+                    }
                 }
+                addressResult
             } else {
-                null
+                // Use deprecated API for older Android versions
+                @Suppress("DEPRECATION")
+                val addresses = geocoder.getFromLocation(latitude, longitude, 1)
+
+                if (!addresses.isNullOrEmpty()) {
+                    addresses[0].getAddressLine(0)
+                } else {
+                    null
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()

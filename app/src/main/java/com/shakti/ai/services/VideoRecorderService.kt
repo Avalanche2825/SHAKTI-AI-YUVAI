@@ -1,6 +1,7 @@
 package com.shakti.ai.services
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -175,6 +176,7 @@ class VideoRecorderService : LifecycleService() {
     /**
      * Start recording from specific camera
      */
+    @SuppressLint("MissingPermission")
     private fun startCameraRecording(
         cameraProvider: ProcessCameraProvider,
         cameraSelector: CameraSelector,
@@ -346,8 +348,6 @@ class VideoRecorderService : LifecycleService() {
             .setShowWhen(false) // Hide timestamp
             .build()
     }
-
-    override fun onBind(intent: Intent): IBinder? = null
 
     override fun onDestroy() {
         super.onDestroy()

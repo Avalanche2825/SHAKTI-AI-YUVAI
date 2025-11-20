@@ -1,362 +1,209 @@
-# 🛡️ SHAKTI AI - Women's Safety Application
+# SHAKTI AI - Women's Safety App 🛡️
 
-**India's First AI-Powered Women's Safety App with Automatic Threat Detection**
+**Your Personal Safety Companion Powered by AI**
 
-[![Platform](https://img.shields.io/badge/Platform-Android-green.svg)](https://android.com)
-[![API](https://img.shields.io/badge/API-24%2B-brightgreen.svg)](https://android-arsenal.com/api?level=24)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
----
-
-## 📱 About
-
-**SHAKTI AI** is a revolutionary women's safety application designed specifically for the Indian
-context. Unlike traditional safety apps that require manual activation, SHAKTI AI uses advanced
-machine learning to automatically detect threats through audio analysis and immediately capture
-evidence.
-
-The app disguises itself as a calculator for protection from abusers while continuously monitoring
-for threats in the background.
-
----
+SHAKTI AI is a disguised women's safety app that looks like a calculator but provides real-time
+threat detection, automatic evidence recording, and emergency assistance.
 
 ## ✨ Key Features
 
-### 🤖 **AI-Powered Threat Detection**
+### 🎤 **HELP Voice Command** (Most Important!)
 
-- **YAMNet ML Model** - 521 audio class classification
-- **Automatic detection** of screams, yells, crying, gasps
-- **Real-time inference** (50-100ms latency)
-- **No manual activation required**
+- **Say "HELP" 3 times within 8 seconds** to trigger emergency
+- Works even when screen is locked
+- No need to touch the phone
+- Instantly starts recording evidence and alerts contacts
 
-### 📹 **Dual-Camera Evidence Capture**
+### 🤖 AI-Powered Protection
 
-- Records from **both front and back cameras** simultaneously
-- **HD 720p video** with audio
-- Captures attacker's face (front) and surroundings (back)
-- **Legal-grade evidence** with timestamps
+- Real-time audio threat detection using TensorFlow Lite
+- Automatic scream and distress call detection
+- Voice command recognition (HELP, EMERGENCY, BACHAO)
+- Dual-camera evidence recording (front + back)
 
-### 📍 **GPS Location Tracking**
+### 📱 Disguised Interface
 
-- **High-accuracy GPS** with 5-second updates
-- **Reverse geocoding** (coordinates → readable address)
-- Location history tracking
-- Real-time notification updates
+- Appears as a fully functional calculator
+- Secret codes to access features:
+    - **999=** → Dashboard
+    - **911=** → Emergency SOS
+    - **777=** → Settings
+    - **Long press AC** → Toggle monitoring
 
-### 📡 **Offline Community Network**
+### ⚖️ Legal Assistance (NYAY)
 
-- **BLE mesh network** (1km radius)
-- Alerts nearby SHAKTI users automatically
-- **Works without internet**
-- RSSI-based distance calculation
+- Auto-generate FIR with correct IPC sections
+- Case strength assessment
+- Find nearby lawyers
+- Legal rights information
 
-### ⚖️ **NYAY Legal AI Assistant**
+### 🏠 Escape Planner
 
-- **Auto-generates FIR** (First Information Report)
-- Maps to correct **IPC sections** (498A, 354, 375, etc.)
-- **Case strength calculator** (with evidence bonus)
-- Lawyer recommendations by specialization
+- Financial planning calculator
+- Safe house locator
+- Timeline generator
+- Emergency funding sources
 
-### 💰 **Escape Planner**
+### 💜 AI Chatbot Assistant
 
-- **Financial calculator** (₹90K-2.5L budgets)
-- **Safe house finder** (sorted by distance)
-- **7-step escape timeline**
-- **Microfinance integration** (NRLM loans, NGO grants)
+- 24/7 emotional support
+- Safety tips and advice
+- Legal guidance
+- Crisis intervention
 
-### 🧮 **Calculator Disguise**
+## 🚀 Quick Start
 
-- Fully functional calculator interface
-- **Secret codes**:
-    - `999=` → Dashboard
-    - `911=` → Emergency SOS
-    - `777=` → Settings
-    - `Long-press AC` → Toggle monitoring
-
----
-
-## 🏗️ Tech Stack
-
-### **Languages & Frameworks**
-
-- **Kotlin** - Primary language
-- **Android SDK** (API 24-34)
-- **Material Design 3** - UI components
-
-### **Machine Learning**
-
-- **TensorFlow Lite** - On-device ML inference
-- **YAMNet Model** (3.94 MB) - Audio classification
-- 521 audio event classes from AudioSet
-
-### **Camera & Video**
-
-- **CameraX** - Modern camera API
-- **Recorder API** - Video recording
-- Dual-camera simultaneous recording
-
-### **Location Services**
-
-- **FusedLocationProviderClient** - Google Play Services
-- **Geocoder API** - Address lookup
-- High-accuracy GPS mode
-
-### **Bluetooth**
-
-- **Bluetooth Low Energy (BLE)** - Community alerts
-- **AdvertiseCallback** - Broadcasting
-- **ScanCallback** - Receiving alerts
-
-### **Architecture**
-
-- **MVVM Pattern** - Clean architecture
-- **ViewBinding** - Type-safe view access
-- **Foreground Services** - Background tasks
-- **SharedPreferences** - Data persistence
-
-### **Permissions**
-
-- `RECORD_AUDIO` - Threat detection
-- `CAMERA` - Video evidence
-- `ACCESS_FINE_LOCATION` - GPS tracking
-- `BLUETOOTH_SCAN` & `BLUETOOTH_CONNECT` - Community network
-
----
-
-## 📂 Project Structure
-
-```
-app/
-├── src/main/
-│   ├── java/com/shakti/ai/
-│   │   ├── ShaktiApplication.kt          # App initialization
-│   │   ├── ui/                           # Activities
-│   │   │   ├── OnboardingActivity.kt     # First-time setup
-│   │   │   ├── CalculatorActivity.kt     # Disguised launcher
-│   │   │   ├── DashboardActivity.kt      # Control center
-│   │   │   ├── NyayLegalActivity.kt      # FIR generator
-│   │   │   ├── EscapePlannerActivity.kt  # Financial planner
-│   │   │   ├── SettingsActivity.kt       # Configuration
-│   │   │   └── IncidentReportActivity.kt # Evidence viewer
-│   │   ├── services/                     # Background services
-│   │   │   ├── AudioDetectionService.kt  # ML threat detection
-│   │   │   ├── VideoRecorderService.kt   # Dual-camera recording
-│   │   │   ├── LocationService.kt        # GPS tracking
-│   │   │   ├── BluetoothService.kt       # BLE community alerts
-│   │   │   ├── NyayLegalService.kt       # FIR generation
-│   │   │   └── EscapePlannerService.kt   # Financial planning
-│   │   ├── ml/                           # Machine Learning
-│   │   │   └── AudioThreatDetector.kt    # YAMNet TFLite wrapper
-│   │   └── utils/                        # Utilities
-│   │       ├── Constants.kt              # App constants
-│   │       └── PermissionsHelper.kt      # Permission management
-│   ├── res/
-│   │   ├── layout/                       # UI layouts (7 activities)
-│   │   ├── values/
-│   │   │   ├── colors.xml                # 65 colors
-│   │   │   ├── styles.xml                # 13 styles
-│   │   │   ├── themes.xml                # 2 themes
-│   │   │   └── strings.xml               # String resources
-│   │   └── drawable/                     # Icons & drawables
-│   └── assets/
-│       └── audio_threat_model.tflite     # YAMNet ML model (3.94 MB)
-└── build.gradle                          # Dependencies
-```
-
----
-
-## 🚀 Installation & Setup
-
-### **Prerequisites**
+### Prerequisites
 
 - Android Studio Arctic Fox or later
-- Android SDK (API 24+)
-- Gradle 7.0+
-- Java 11+
+- Android SDK 24 or higher
+- JDK 17 or higher
+- Gradle 8.1.4 or higher
 
-### **Clone Repository**
+### Build Instructions
 
-```bash
-git clone https://github.com/Avalanche2825/SHAKTI-AI-YUVAI.git
-cd SHAKTI-AI-YUVAI
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/SHAKTIAI-YUVAI.git
+   cd SHAKTIAI-YUVAI
+   ```
+
+2. **Set up local.properties**
+   Create a `local.properties` file in the root directory with your SDK path:
+   ```properties
+   sdk.dir=C\:\\Users\\YourUsername\\AppData\\Local\\Android\\Sdk
+   # Or on Mac/Linux:
+   # sdk.dir=/Users/YourUsername/Library/Android/sdk
+   ```
+
+3. **Update keystore.properties (Optional - for release builds)**
+   If building release APK, update `keystore.properties`:
+   ```properties
+   storePassword=your_password
+   keyPassword=your_password
+   keyAlias=your_key_alias
+   storeFile=../your-keystore.jks
+   ```
+
+   **For debug builds**, you can skip this step. The app will build without signing config.
+
+4. **Add google-services.json**
+    - Place your Firebase `google-services.json` file in `app/` directory
+    - If you don't have one, create a Firebase project at https://console.firebase.google.com/
+
+5. **Build the project**
+   ```bash
+   # For Windows
+   .\gradlew.bat assembleDebug
+   
+   # For Mac/Linux
+   ./gradlew assembleDebug
+   ```
+
+6. **Install on device**
+   ```bash
+   # For Windows
+   .\gradlew.bat installDebug
+   
+   # For Mac/Linux
+   ./gradlew installDebug
+   ```
+
+### Common Build Issues
+
+#### Issue: "SDK location not found"
+
+**Solution**: Create `local.properties` with your Android SDK path (see step 2 above)
+
+#### Issue: "google-services.json not found"
+
+**Solution**: Add your Firebase config file or create a dummy one:
+
+```json
+{
+  "project_info": {
+    "project_number": "123456789",
+    "project_id": "shakti-ai-demo"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123456789:android:abcdef",
+        "android_client_info": {
+          "package_name": "com.shakti.ai"
+        }
+      }
+    }
+  ]
+}
 ```
 
-### **Open in Android Studio**
+#### Issue: Signing errors in release build
 
-1. Open Android Studio
-2. Select "Open an Existing Project"
-3. Navigate to the cloned directory
-4. Wait for Gradle sync to complete
-
-### **Build & Run**
-
+**Solution**: Either create a keystore or build debug version:
 ```bash
-# Build debug APK
-./gradlew assembleDebug
-
-# Install on connected device
-./gradlew installDebug
-
-# Run
-adb shell am start -n com.shakti.ai/.ui.CalculatorActivity
+# Build debug (no signing required)
+.\gradlew.bat assembleDebug
 ```
 
----
+#### Issue: Lint errors
 
-## 📖 Usage Guide
+**Solution**: Lint checks are configured to not abort the build. Warnings can be ignored for
+testing.
 
-### **First Time Setup**
+## 📱 How to Use
 
-1. Install and open the app
-2. Complete onboarding (3 pages)
-3. Grant all permissions (Audio, Camera, Location, Bluetooth)
-4. Learn secret codes
+1. **First Launch**
+    - Grant all permissions (Microphone, Camera, Location, etc.)
+    - Set up emergency contacts
 
-### **Enable Monitoring**
+2. **Enable Monitoring**
+    - Long press the "AC" button on calculator
+    - Green dot appears when active
+    - Say "HELP" 3 times to test voice command
 
-1. Open app (see calculator)
-2. **Long-press AC button**
-3. Green dot appears (monitoring active)
-4. App listens for threats 24/7
+3. **Access Hidden Features**
+    - Type `999=` to open Dashboard
+    - Type `911=` for immediate SOS
+    - Type `777=` for Settings
 
-### **Secret Codes**
-
-| Code | Action |
-|------|--------|
-| `999=` | Open Dashboard |
-| `911=` | Emergency SOS |
-| `777=` | Open Settings |
-| `Long-press AC` | Toggle Monitoring |
-
-### **In Case of Threat**
-
-1. App automatically detects threat (via ML)
-2. Dual-camera recording starts
-3. GPS location tracked
-4. BLE alert broadcasts to nearby users
-5. Evidence saved with timestamp
-
-### **After Incident**
-
-1. Type `999=` to open dashboard
-2. View incident report
-3. Generate FIR (NYAY Legal)
-4. Plan escape (Financial calculator)
-5. Share evidence with police/lawyer
-
----
+4. **In Emergency**
+    - Say "HELP" 3 times (most reliable!)
+    - Or use secret code `911=`
+    - App will:
+        - Start recording video/audio
+        - Track your location
+        - Alert emergency contacts
+        - Save evidence securely
 
 ## 🔒 Privacy & Security
 
-- ✅ **All data stays on device** (no cloud storage)
-- ✅ **End-to-end encryption** for sensitive data
-- ✅ **Calculator disguise** hides app from abusers
-- ✅ **App-private storage** for evidence files
-- ✅ **No tracking or analytics**
-- ✅ **Open source** (community auditable)
+- ✅ All recordings stored in **hidden internal storage**
+- ✅ Evidence encrypted and inaccessible to other apps
+- ✅ Disguised as calculator app
+- ✅ No external storage or cloud upload (optional)
+- ✅ Works completely offline
 
----
+## 👥 Contributing
 
-## 🇮🇳 Indian Context
-
-### **IPC Sections Covered**
-
-- **498A** - Cruelty by husband
-- **354** - Outraging modesty
-- **354A** - Sexual harassment
-- **375/376** - Rape and punishment
-- **503/504** - Criminal intimidation
-- **67 IT Act** - Obscene online content
-- And 10 more sections
-
-### **Safe Houses (Delhi NCR)**
-
-- Shakti Foundation (Karol Bagh)
-- ARIVAA (Dwarka)
-- Breakthrough India (Okhla)
-
-### **Financial Planning**
-
-- Based on Indian living costs (₹)
-- NRLM microfinance integration
-- NGO emergency grants
-- Government scheme recommendations
-
-### **Multi-Language Support**
-
-- English
-- Hindi (हिंदी)
-- Bengali (বাংলা)
-- Kannada (ಕನ್ನಡ)
-- Tamil (தமிழ்)
-
----
-
-## 📊 Statistics
-
-- **Total Code:** ~7,500 lines
-- **Activities:** 7
-- **Services:** 6 (4 foreground + 2 helper)
-- **ML Model:** YAMNet 3.94 MB (521 classes)
-- **IPC Sections:** 16
-- **Incident Types:** 8
-- **Colors Defined:** 65
-- **Build Time:** ~45 seconds
-- **APK Size:** 54.13 MB
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
+Contributions are welcome! Please read CONTRIBUTING.md for details on our code of conduct and the
+process for submitting pull requests.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
----
+## 🆘 Emergency Contacts
 
-## 👨‍💻 Developer
-
-**Abhyuday Jain**
-
-- GitHub: [@Avalanche2825](https://github.com/Avalanche2825)
-- Email: abhyudayjain59@gmail.com
-
----
-
-## 🙏 Acknowledgments
-
-- **Google Research** - YAMNet audio classification model
-- **Android Open Source Project** - CameraX, TensorFlow Lite
-- **Material Design** - UI components
-- **Indian Penal Code** - Legal framework
-- **Women's Safety Organizations** - Domain knowledge
-
----
+- **Women Helpline**: 1091
+- **Police**: 100
+- **Domestic Violence Helpline**: 181
 
 ## ⚠️ Disclaimer
 
-This app is designed to assist in emergency situations but should not be considered a replacement
-for proper safety measures, legal counsel, or emergency services. Always contact local authorities (
-Police: 100, Women's Helpline: 181) in case of immediate danger.
+This app is intended to assist in emergency situations but should not be relied upon as the sole
+means of protection. Always seek immediate help from authorities in dangerous situations.
 
 ---
 
-## 🌟 Star This Repository
-
-If you find this project useful, please consider giving it a ⭐ on GitHub!
-
----
-
-**Built with ❤️ for the safety of Indian women**
-
-🛡️ **SHAKTI AI** - Empowering Women Through Technology
+**Made with 💜 for women's safety**

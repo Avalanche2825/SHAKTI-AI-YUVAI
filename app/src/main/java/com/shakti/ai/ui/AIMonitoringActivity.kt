@@ -1,7 +1,10 @@
 package com.shakti.ai.ui
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
@@ -10,7 +13,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.shakti.ai.databinding.ActivityAimonitoringBinding
-import com.shakti.ai.ml.VoiceCommandDetector
+import com.shakti.ai.ml.HelpWordDetector
 import com.shakti.ai.services.AudioDetectionService
 import com.shakti.ai.utils.Constants
 import java.text.SimpleDateFormat
@@ -25,8 +28,48 @@ class AIMonitoringActivity : AppCompatActivity() {
     private lateinit var binding: ActivityAimonitoringBinding
     private val detectionLog = mutableListOf<DetectionEvent>()
     private lateinit var logAdapter: DetectionLogAdapter
-    private var voiceCommandDetector: VoiceCommandDetector? = null
+    private var helpWordDetector: HelpWordDetector? = null
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    // Broadcast receiver for audio levels
+    private val audioLevelReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                "com.shakti.ai.AUDIO_LEVEL_UPDATE" -> {
+                    val energy = intent.getFloatExtra("audio_energy", 0f)
+                    val frequency = intent.getDoubleExtra("audio_frequency", 0.0)
+                    val isSpeech = intent.getBooleanExtra("is_speech", false)
+
+                    // Update waveform visualizer
+                    binding.audioVisualizer.updateWaveform(energy * 2f) // Scale for visibility
+
+                    // Update audio level text
+                    val percentage = (energy * 100).toInt().coerceIn(0, 100)
+                    binding.tvAudioLevel.text = "Level: $percentage% ${if (isSpeech) "🎤" else ""}"
+
+                    // Update status if speech detected
+                    if (isSpeech) {
+                        binding.audioVisualizer.setWaveformColor(
+                            android.graphics.Color.parseColor("#10B981") // Green when speech
+                        )
+                        binding.tvAudioLevel.setTextColor(
+                            android.graphics.Color.parseColor("#10B981")
+                        )
+                    } else {
+                        binding.audioVisualizer.setWaveformColor(
+                            android.graphics.Color.parseColor("#32B8C6") // Teal when idle
+                        )
+                        binding.tvAudioLevel.setTextColor(
+                            ContextCompat.getColor(
+                                this@AIMonitoringActivity,
+                                com.shakti.ai.R.color.text_light
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     companion object {
         private const val REQUEST_RECORD_AUDIO = 200
@@ -43,6 +86,18 @@ class AIMonitoringActivity : AppCompatActivity() {
         setupWaveform()
         loadStatistics()
         startLiveUpdates()
+        registerAudioLevelReceiver()
+    }
+
+    /**
+     * Register broadcast receiver for audio level updates
+     */
+    private fun registerAudioLevelReceiver() {
+        val filter = IntentFilter().apply {
+            addAction("com.shakti.ai.AUDIO_LEVEL_UPDATE")
+            addAction("com.shakti.ai.HELP_DETECTION_UPDATE")
+        }
+        registerReceiver(audioLevelReceiver, filter)
     }
 
     private fun setupToolbar() {
@@ -107,19 +162,29 @@ class AIMonitoringActivity : AppCompatActivity() {
 
     private fun startVoiceCommandDetection() {
         try {
-            voiceCommandDetector = VoiceCommandDetector()
-            voiceCommandDetector?.startListening { command ->
+            // Stop idle animation when starting real detection
+            handler.removeCallbacksAndMessages(null)
+            binding.audioVisualizer.reset()
+
+            helpWordDetector = HelpWordDetector(this)
+
+            // Load sensitivity from preferences
+            val prefs = getSharedPreferences(com.shakti.ai.utils.Constants.PREFS_NAME, MODE_PRIVATE)
+            val sensitivity = prefs.getFloat("help_detection_sensitivity", 0.40f)
+            helpWordDetector?.setSensitivity(sensitivity)
+
+            helpWordDetector?.startListening {
                 runOnUiThread {
-                    onVoiceCommandDetected(command)
+                    onVoiceCommandDetected("HELP")
                 }
             }
 
-            updateVoiceCommandStatus("🎤 Listening for HELP command...")
+            updateVoiceCommandStatus("🎤 Listening for HELP word... (sensitivity: ${(sensitivity * 100).toInt()}%)")
             startVoiceCommandUpdates()
 
             Toast.makeText(
                 this,
-                "Voice commands enabled! Say 'HELP' 3 times",
+                "HELP word detection enabled! Say 'HELP' 3 times",
                 Toast.LENGTH_LONG
             ).show()
 
@@ -129,18 +194,23 @@ class AIMonitoringActivity : AppCompatActivity() {
             updateVoiceCommandStatus("Failed to start: ${e.message}")
             Toast.makeText(
                 this,
-                "Error starting voice detection",
+                "Error starting HELP detection",
                 Toast.LENGTH_SHORT
             ).show()
         }
     }
 
     private fun stopVoiceCommandDetection() {
-        voiceCommandDetector?.stopListening()
-        voiceCommandDetector = null
+        helpWordDetector?.stopListening()
+        helpWordDetector = null
         handler.removeCallbacks(voiceCommandUpdateRunnable)
-        updateVoiceCommandStatus("Voice commands disabled")
-        Toast.makeText(this, "Voice commands stopped", Toast.LENGTH_SHORT).show()
+        updateVoiceCommandStatus("HELP word detection disabled")
+
+        // Resume idle animation
+        binding.audioVisualizer.reset()
+        binding.audioVisualizer.animateIdle()
+
+        Toast.makeText(this, "HELP detection stopped", Toast.LENGTH_SHORT).show()
     }
 
     private fun startVoiceCommandUpdates() {
@@ -149,17 +219,17 @@ class AIMonitoringActivity : AppCompatActivity() {
 
     private val voiceCommandUpdateRunnable = object : Runnable {
         override fun run() {
-            voiceCommandDetector?.let { detector ->
+            helpWordDetector?.let { detector ->
                 val count = detector.getCurrentDetectionCount()
                 val timeLeft = detector.getTimeUntilReset() / 1000
 
                 if (count > 0) {
                     updateVoiceCommandStatus(
-                        "🗣️ Detected: $count/3 HELP commands (${timeLeft}s remaining)"
+                        "🗣️ Detected: $count/3 HELP words (${timeLeft}s remaining)"
                     )
                 } else {
                     updateVoiceCommandStatus(
-                        "🎤 Listening for HELP command... (say it 3 times)"
+                        "🎤 Listening for HELP word... (say it 3 times)"
                     )
                 }
             }
@@ -228,6 +298,7 @@ class AIMonitoringActivity : AppCompatActivity() {
     }
 
     private fun setupWaveform() {
+        // Start idle animation initially
         binding.audioVisualizer.animateIdle()
     }
 
@@ -374,6 +445,13 @@ class AIMonitoringActivity : AppCompatActivity() {
         stopVoiceCommandDetection()
         binding.confidenceMeter.stopAnimations()
         handler.removeCallbacksAndMessages(null)
+
+        // Unregister broadcast receiver
+        try {
+            unregisterReceiver(audioLevelReceiver)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
 

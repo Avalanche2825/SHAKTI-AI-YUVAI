@@ -1,6 +1,7 @@
 package com.shakti.ai.services
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -79,6 +80,7 @@ class BluetoothService : Service() {
     /**
      * Start advertising emergency alert to nearby devices
      */
+    @SuppressLint("MissingPermission")
     private fun startAdvertising() {
         if (isAdvertising || !hasBluetoothPermission()) {
             return
@@ -148,6 +150,7 @@ class BluetoothService : Service() {
     /**
      * Start scanning for nearby alerts
      */
+    @SuppressLint("MissingPermission")
     private fun startScanning() {
         if (isScanning || !hasBluetoothPermission()) {
             return
@@ -284,6 +287,7 @@ class BluetoothService : Service() {
     /**
      * Stop scanning
      */
+    @SuppressLint("MissingPermission")
     private fun stopScanning() {
         if (isScanning) {
             try {
@@ -298,6 +302,7 @@ class BluetoothService : Service() {
     /**
      * Stop advertising
      */
+    @SuppressLint("MissingPermission")
     private fun stopAdvertising() {
         if (isAdvertising) {
             try {

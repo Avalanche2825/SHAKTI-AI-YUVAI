@@ -1,8 +1,12 @@
 package com.shakti.ai.ui
 
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.os.Bundle
 import android.os.Vibrator
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -34,6 +38,9 @@ class CalculatorActivity : AppCompatActivity() {
     // Monitoring state
     private var isMonitoring = false
 
+    // HELP detection receiver
+    private var helpDetectionReceiver: BroadcastReceiver? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCalculatorBinding.inflate(layoutInflater)
@@ -41,6 +48,7 @@ class CalculatorActivity : AppCompatActivity() {
 
         setupCalculatorButtons()
         setupMonitoringToggle()
+        setupHelpDetectionReceiver()
         checkFirstLaunch()
     }
 
@@ -331,6 +339,82 @@ class CalculatorActivity : AppCompatActivity() {
         binding.indicatorMonitoring.setBackgroundResource(
             if (isMonitoring) R.drawable.indicator_active else R.drawable.indicator_inactive
         )
+
+        // Reset help dots when monitoring is toggled
+        if (!isMonitoring) {
+            binding.helpDetectionIndicator.visibility = View.GONE
+            resetHelpDots()
+        }
+    }
+
+    /**
+     * Setup broadcast receiver for HELP detection updates
+     */
+    private fun setupHelpDetectionReceiver() {
+        helpDetectionReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val detectionCount = intent?.getIntExtra("detection_count", 0) ?: 0
+                val totalRequired = intent?.getIntExtra("total_required", 3) ?: 3
+                updateHelpDots(detectionCount, totalRequired)
+            }
+        }
+
+        val filter = IntentFilter("com.shakti.ai.HELP_DETECTION_UPDATE")
+        registerReceiver(helpDetectionReceiver, filter, RECEIVER_NOT_EXPORTED)
+    }
+
+    /**
+     * Update the 3 dots indicator based on HELP detection count
+     */
+    private fun updateHelpDots(detectionCount: Int, totalRequired: Int) {
+        // Show the help detection indicator when monitoring is active
+        if (isMonitoring && detectionCount > 0) {
+            binding.helpDetectionIndicator.visibility = View.VISIBLE
+
+            // Update dot 1
+            if (detectionCount >= 1) {
+                binding.helpDot1.setBackgroundResource(R.drawable.help_dot_active)
+            } else {
+                binding.helpDot1.setBackgroundResource(R.drawable.help_dot_inactive)
+            }
+
+            // Update dot 2
+            if (detectionCount >= 2) {
+                binding.helpDot2.setBackgroundResource(R.drawable.help_dot_active)
+            } else {
+                binding.helpDot2.setBackgroundResource(R.drawable.help_dot_inactive)
+            }
+
+            // Update dot 3
+            if (detectionCount >= 3) {
+                binding.helpDot3.setBackgroundResource(R.drawable.help_dot_active)
+                // All 3 detected - emergency will be triggered automatically
+                // Vibrate to give tactile feedback
+                vibrate()
+            } else {
+                binding.helpDot3.setBackgroundResource(R.drawable.help_dot_inactive)
+            }
+
+            // Auto-hide after 8 seconds if not all detected
+            binding.helpDetectionIndicator.postDelayed({
+                if (detectionCount < totalRequired) {
+                    binding.helpDetectionIndicator.visibility = View.GONE
+                    resetHelpDots()
+                }
+            }, 8000)
+        } else {
+            binding.helpDetectionIndicator.visibility = View.GONE
+            resetHelpDots()
+        }
+    }
+
+    /**
+     * Reset all help dots to inactive (red)
+     */
+    private fun resetHelpDots() {
+        binding.helpDot1.setBackgroundResource(R.drawable.help_dot_inactive)
+        binding.helpDot2.setBackgroundResource(R.drawable.help_dot_inactive)
+        binding.helpDot3.setBackgroundResource(R.drawable.help_dot_inactive)
     }
 
     /**
@@ -373,5 +457,13 @@ class CalculatorActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
         isMonitoring = prefs.getBoolean(Constants.KEY_MONITORING_ENABLED, false)
         updateMonitoringIndicator()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Unregister receiver
+        helpDetectionReceiver?.let {
+            unregisterReceiver(it)
+        }
     }
 }

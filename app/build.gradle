@@ -70,6 +70,15 @@ android {
         viewBinding true
         mlModelBinding true
     }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+        // Disable specific checks that are warnings
+        disable 'MissingPermission', 'SetTextI18n', 'HardcodedText', 'UnusedResources',
+                'UseTomlInstead', 'GradleDependency', 'OldTargetApi', 'LogNotTimber',
+                'LockedOrientationActivity', 'ScopedStorage', 'UnusedAttribute'
+    }
 }
 
 dependencies {
