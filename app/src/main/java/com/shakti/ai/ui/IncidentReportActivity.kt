@@ -53,77 +53,103 @@ class IncidentReportActivity : AppCompatActivity() {
     }
 
     private fun loadIncidentData() {
-        // Get incident ID (passed via intent or use latest from preferences)
+        // Get incident ID (passed via intent or use latest from database)
         val incidentId = intent.getStringExtra("incident_id")
-            ?: getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-                .getString("current_incident_id", null)
 
-        if (incidentId == null) {
-            binding.tvNoData.visibility = android.view.View.VISIBLE
-            return
-        }
-
-        // Load from DATABASE
         lifecycleScope.launch {
-            val incident = database.incidentDao().getIncidentById(incidentId)
-            val evidence = database.evidenceDao().getEvidenceForIncident(incidentId)
-
-            runOnUiThread {
-                if (incident == null) {
-                    binding.tvNoData.visibility = android.view.View.VISIBLE
-                    return@runOnUiThread
+            try {
+                // If no specific incident ID, get the most recent one
+                val incident = if (incidentId != null) {
+                    database.incidentDao().getIncidentById(incidentId)
+                } else {
+                    // Get the most recent incident
+                    val allIncidents = database.incidentDao().getAllIncidents()
+                    allIncidents.maxByOrNull { it.startTime }
                 }
 
-                currentIncident = incident
+                if (incident == null) {
+                    runOnUiThread {
+                        binding.tvNoData.visibility = android.view.View.VISIBLE
+                        binding.tvNoData.text = "No incident data available"
+                    }
+                    return@launch
+                }
 
-                // Load timestamp
-                val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
-                binding.tvTimestamp.text = "Time: ${dateFormat.format(Date(incident.startTime))}"
+                val evidence = database.evidenceDao().getEvidenceForIncident(incident.id)
 
-                // Load location
-                if (incident.latitude != 0.0 && incident.longitude != 0.0) {
-                    binding.tvLocation.text =
-                        "Location: ${
-                            String.format(
-                                "%.6f",
-                                incident.latitude
-                            )
-                        }, ${String.format("%.6f", incident.longitude)}"
-                    if (incident.address != null) {
-                        binding.tvAddress.text = incident.address
+                runOnUiThread {
+                    // Hide "no data" message
+                    binding.tvNoData.visibility = android.view.View.GONE
+
+                    currentIncident = incident
+
+                    // Load timestamp
+                    val dateFormat =
+                        SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
+                    binding.tvTimestamp.text =
+                        "Time: ${dateFormat.format(Date(incident.startTime))}"
+
+                    // Load trigger type
+                    binding.tvTriggerType.text =
+                        "Trigger: ${formatTriggerType(incident.triggerType)}"
+
+                    // Load location
+                    if (incident.latitude != 0.0 && incident.longitude != 0.0) {
+                        binding.tvLocation.text =
+                            "Location: ${
+                                String.format(
+                                    "%.6f",
+                                    incident.latitude
+                                )
+                            }, ${String.format("%.6f", incident.longitude)}"
+                        if (incident.address != null) {
+                            binding.tvAddress.text = incident.address
+                        } else {
+                            binding.tvAddress.text = "Address not available"
+                        }
                     } else {
+                        binding.tvLocation.text = "Location: Checking..."
                         binding.tvAddress.text = "Address not available"
                     }
-                } else {
+
+                    // Load video evidence count
+                    val frontVideos = evidence.filter { it.type == "video_front" }
+                    val backVideos = evidence.filter { it.type == "video_back" }
+                    val audioFiles = evidence.filter { it.type == "audio" }
+
+                    binding.tvFrontVideo.text = if (frontVideos.isNotEmpty()) {
+                        "Front Camera: ✓ ${frontVideos.size} recorded"
+                    } else {
+                        "Front Camera: Checking..."
+                    }
+
+                    binding.tvBackVideo.text = if (backVideos.isNotEmpty()) {
+                        "Back Camera: ✓ ${backVideos.size} recorded"
+                    } else {
+                        "Back Camera: Checking..."
+                    }
+
+                    binding.tvAudioRecording.text = if (audioFiles.isNotEmpty()) {
+                        "Audio: ✓ ${audioFiles.size} recorded"
+                    } else {
+                        "Audio: Checking..."
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                runOnUiThread {
+                    binding.tvNoData.visibility = android.view.View.VISIBLE
+                    binding.tvNoData.text = "Error loading incident data"
+
+                    // Show default values
+                    binding.tvTimestamp.text = "Time: Error loading"
+                    binding.tvTriggerType.text = "Trigger: Unknown"
                     binding.tvLocation.text = "Location: Not available"
                     binding.tvAddress.text = "Address not available"
+                    binding.tvFrontVideo.text = "Front Camera: Error"
+                    binding.tvBackVideo.text = "Back Camera: Error"
+                    binding.tvAudioRecording.text = "Audio: Error"
                 }
-
-                // Load video evidence count
-                val frontVideos = evidence.filter { it.type == "video_front" }
-                val backVideos = evidence.filter { it.type == "video_back" }
-                val audioFiles = evidence.filter { it.type == "audio" }
-
-                binding.tvFrontVideo.text = if (frontVideos.isNotEmpty()) {
-                    "Front Camera: ✓ ${frontVideos.size} recorded"
-                } else {
-                    "Front Camera: Not available"
-                }
-
-                binding.tvBackVideo.text = if (backVideos.isNotEmpty()) {
-                    "Back Camera: ✓ ${backVideos.size} recorded"
-                } else {
-                    "Back Camera: Not available"
-                }
-
-                binding.tvAudioRecording.text = if (audioFiles.isNotEmpty()) {
-                    "Audio: ✓ ${audioFiles.size} recorded"
-                } else {
-                    "Audio: Not available"
-                }
-
-                // Show trigger type
-                binding.tvTriggerType.text = "Trigger: ${formatTriggerType(incident.triggerType)}"
             }
         }
     }
@@ -139,14 +165,10 @@ class IncidentReportActivity : AppCompatActivity() {
 
     private fun setupButtons() {
         binding.btnViewEvidence.setOnClickListener {
-            // Open Evidence Viewer Activity
-            val incidentId = intent.getStringExtra("incident_id")
-                ?: getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-                    .getString("current_incident_id", null)
-
-            if (incidentId != null) {
+            // Use the current incident that was loaded
+            if (currentIncident != null) {
                 val intent = Intent(this, EvidenceViewerActivity::class.java)
-                intent.putExtra("incident_id", incidentId)
+                intent.putExtra("incident_id", currentIncident!!.id)
                 startActivity(intent)
             } else {
                 android.widget.Toast.makeText(

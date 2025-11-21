@@ -4,10 +4,13 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.shakti.ai.R
+import com.shakti.ai.data.EvidenceDatabase
 import com.shakti.ai.databinding.ActivityDashboardBinding
 import com.shakti.ai.utils.Constants
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -25,11 +28,14 @@ import java.util.*
 class DashboardActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDashboardBinding
+    private lateinit var database: EvidenceDatabase
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDashboardBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        database = EvidenceDatabase.getDatabase(this)
 
         setupToolbar()
         setupQuickActions()
@@ -101,48 +107,74 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     /**
-     * Load incident history from preferences
+     * Load incident history from DATABASE
      */
     private fun loadIncidentHistory() {
-        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-        val incidentCount = prefs.getInt("total_incidents", 0)
+        lifecycleScope.launch {
+            try {
+                // Get all incidents from database
+                val incidents = database.incidentDao().getAllIncidents()
+                val incidentCount = incidents.size
 
-        binding.tvIncidentCount.text = incidentCount.toString()
+                runOnUiThread {
+                    binding.tvIncidentCount.text = incidentCount.toString()
 
-        if (incidentCount > 0) {
-            // Get most recent incident
-            val lastIncidentTime = prefs.getLong("last_incident_time", 0)
-            if (lastIncidentTime > 0) {
-                val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
-                binding.tvLastIncident.text = "Last: ${dateFormat.format(Date(lastIncidentTime))}"
-            } else {
-                binding.tvLastIncident.text = "No recent incidents"
+                    if (incidentCount > 0) {
+                        // Get most recent incident
+                        val lastIncident = incidents.maxByOrNull { it.startTime }
+                        if (lastIncident != null) {
+                            val dateFormat =
+                                SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
+                            binding.tvLastIncident.text =
+                                "Last: ${dateFormat.format(Date(lastIncident.startTime))}"
+                        } else {
+                            binding.tvLastIncident.text = "No recent incidents"
+                        }
+                    } else {
+                        binding.tvLastIncident.text = "No incidents recorded"
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                runOnUiThread {
+                    binding.tvIncidentCount.text = "0"
+                    binding.tvLastIncident.text = "Error loading data"
+                }
             }
-        } else {
-            binding.tvLastIncident.text = "No incidents recorded"
         }
     }
 
     /**
-     * Load safety statistics
+     * Load safety statistics from DATABASE
      */
     private fun loadStatistics() {
         val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
 
-        // Monitoring time (hours)
+        // Monitoring time (hours) - from preferences
         val monitoringTimeMs = prefs.getLong("total_monitoring_time_ms", 0)
         val monitoringHours = (monitoringTimeMs / (1000 * 60 * 60)).toInt()
         binding.tvMonitoringHours.text = "$monitoringHours hrs"
 
-        // Evidence captured
-        val evidenceCount = prefs.getInt("total_evidence_count", 0)
-        binding.tvEvidenceCount.text = "$evidenceCount files"
+        // Load evidence count from DATABASE
+        lifecycleScope.launch {
+            try {
+                val evidenceCount = database.evidenceDao().getAllEvidence().size
+                runOnUiThread {
+                    binding.tvEvidenceCount.text = "$evidenceCount files"
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                runOnUiThread {
+                    binding.tvEvidenceCount.text = "0 files"
+                }
+            }
+        }
 
-        // Alerts sent
+        // Alerts sent - from preferences
         val alertsSent = prefs.getInt("total_alerts_sent", 0)
         binding.tvAlertsSent.text = "$alertsSent alerts"
 
-        // Community helps
+        // Community helps - from preferences (if implemented)
         val communityHelps = prefs.getInt("community_helps", 0)
         binding.tvCommunityHelps.text = "$communityHelps women"
     }
