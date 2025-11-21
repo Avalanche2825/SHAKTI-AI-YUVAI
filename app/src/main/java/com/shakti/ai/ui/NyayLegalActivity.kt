@@ -250,15 +250,7 @@ class NyayLegalActivity : AppCompatActivity() {
      */
     private fun setupAIChatButton() {
         try {
-            // Create FAB programmatically if not in layout
-            val fabChat =
-                com.google.android.material.floatingactionbutton.FloatingActionButton(this)
-            fabChat.setImageResource(android.R.drawable.ic_dialog_info)
-            fabChat.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                androidx.core.content.ContextCompat.getColor(this, com.shakti.ai.R.color.accent)
-            )
-
-            fabChat.setOnClickListener {
+            binding.fabAiChat.setOnClickListener {
                 // Create and show chat fragment
                 val fragment = com.shakti.ai.ui.components.AIChatFragment.newInstance(
                     com.shakti.ai.models.ChatContext.LEGAL
@@ -270,22 +262,9 @@ class NyayLegalActivity : AppCompatActivity() {
                     .addToBackStack("chat")
                     .commit()
             }
-
-            // Add to layout if root is ViewGroup
-            val rootView = binding.root
-            if (rootView is android.view.ViewGroup) {
-                val params = android.widget.FrameLayout.LayoutParams(
-                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
-                    setMargins(0, 0, 48, 48)
-                }
-                rootView.addView(fabChat, params)
-            }
         } catch (e: Exception) {
-            // FAB creation failed, skip silently
-            android.util.Log.e("NyayLegal", "Failed to add chat FAB: ${e.message}")
+            // FAB not found or error, skip silently
+            android.util.Log.e("NyayLegal", "Failed to setup chat FAB: ${e.message}")
         }
     }
 }
