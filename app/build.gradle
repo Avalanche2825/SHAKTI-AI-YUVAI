@@ -107,6 +107,16 @@ dependencies {
     implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
     implementation 'org.tensorflow:tensorflow-lite-metadata:0.4.4'
     implementation 'org.tensorflow:tensorflow-lite-gpu:2.14.0' // GPU acceleration
+    implementation 'org.tensorflow:tensorflow-lite-task-text:0.4.4' // Text tasks for chatbot
+
+    // ============================================
+    // AI CHATBOT (On-device conversational AI)
+    // ============================================
+    implementation 'com.google.mediapipe:tasks-text:0.10.9' // Text generation
+    implementation 'com.google.ai.client.generativeai:generativeai:0.1.1' // Gemini integration
+
+    // Tokenizers for NLP
+    implementation 'com.knuddels:jtokkit:0.6.1'
 
     // ============================================
     // CAMERAX (Dual-camera video recording)
