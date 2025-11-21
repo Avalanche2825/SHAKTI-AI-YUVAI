@@ -106,6 +106,18 @@
 -keep class com.shakti.ai.** { *; }
 -keepclassmembers class com.shakti.ai.** { *; }
 
+# Don't warn about missing annotation processor classes (compile-time only)
+-dontwarn javax.lang.model.**
+-dontwarn javax.annotation.processing.**
+-dontwarn com.google.auto.value.**
+-dontwarn autovalue.shaded.com.squareup.javapoet$.**
+-dontwarn com.google.auto.common.**
+
+# MediaPipe Tasks
+-keep class com.google.mediapipe.tasks.** { *; }
+-keepclassmembers class com.google.mediapipe.tasks.** { *; }
+-dontwarn com.google.mediapipe.tasks.**
+
 # Preserve line numbers for debugging
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
