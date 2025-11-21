@@ -200,9 +200,12 @@ class AudioDetectionService : Service() {
     private fun triggerEmergencyResponse(confidence: Float) {
         Log.w(TAG, "🚨 TRIGGERING FULL EMERGENCY RESPONSE")
 
-        // Save incident timestamp and create incident in database
+        // Generate incident ID
+        val incidentId = "incident_${System.currentTimeMillis()}"
+        Log.w(TAG, "📝 Generated incident ID: $incidentId")
+
+        // Save to preferences (for backward compatibility)
         val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-        val incidentId = UUID.randomUUID().toString()
         prefs.edit()
             .putString("current_incident_id", incidentId)
             .putLong("incident_${incidentId}_start_time", System.currentTimeMillis())
@@ -211,19 +214,22 @@ class AudioDetectionService : Service() {
             .putLong("last_incident_time", System.currentTimeMillis())
             .apply()
 
-        // Create incident record in DATABASE
-        serviceScope.launch {
+        Log.w(TAG, "💾 Incident saved to preferences")
+
+        // Create incident record in DATABASE (blocking to ensure it exists before services start)
+        runBlocking {
             try {
                 val incident = com.shakti.ai.data.IncidentRecord(
                     id = incidentId,
                     startTime = System.currentTimeMillis(),
-                    triggerType = "ai_detection",
+                    triggerType = "voice_command", // Changed from ai_detection to voice_command
                     confidence = confidence
                 )
                 database.incidentDao().insertIncident(incident)
                 Log.w(TAG, "✅ Incident record created in database: $incidentId")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to create incident in database", e)
+                Log.e(TAG, "❌ Failed to create incident in database", e)
+                e.printStackTrace()
             }
         }
 
@@ -234,17 +240,19 @@ class AudioDetectionService : Service() {
             videoIntent.putExtra("threat_confidence", confidence)
             videoIntent.putExtra("incident_id", incidentId)
             ContextCompat.startForegroundService(this, videoIntent)
-            Log.w(TAG, "✅ Video recording service started")
+            Log.w(TAG, "✅ Video recording service started with incident_id: $incidentId")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to start video recording", e)
+            e.printStackTrace()
         }
 
         // 2. Start AUDIO recording (separate from video for backup)
         try {
             startAudioRecording(incidentId)
-            Log.w(TAG, "✅ Audio recording started")
+            Log.w(TAG, "✅ Audio recording started with incident_id: $incidentId")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to start audio recording", e)
+            e.printStackTrace()
         }
 
         // 3. Start location tracking
@@ -252,9 +260,10 @@ class AudioDetectionService : Service() {
             val locationIntent = Intent(this, LocationService::class.java)
             locationIntent.putExtra("incident_id", incidentId)
             ContextCompat.startForegroundService(this, locationIntent)
-            Log.w(TAG, "✅ Location tracking started")
+            Log.w(TAG, "✅ Location tracking started with incident_id: $incidentId")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to start location tracking", e)
+            e.printStackTrace()
         }
 
         // 4. Send emergency alerts
@@ -262,6 +271,8 @@ class AudioDetectionService : Service() {
 
         // 5. Show notification to user
         showEmergencyNotification(incidentId)
+
+        Log.w(TAG, "🎯 Emergency response complete for incident: $incidentId")
     }
 
     /**
@@ -305,6 +316,8 @@ class AudioDetectionService : Service() {
                 val audioFile = createAudioFile(incidentId)
                 val startTime = System.currentTimeMillis()
 
+                Log.w(TAG, "🎙️ Starting audio recording for incident: $incidentId")
+
                 // Create MediaRecorder
                 recorder =
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -325,9 +338,9 @@ class AudioDetectionService : Service() {
 
                 audioRecorder = recorder
 
-                Log.w(TAG, " Audio recording to HIDDEN storage: ${audioFile.absolutePath}")
+                Log.w(TAG, "🎙️ Audio recording to HIDDEN storage: ${audioFile.absolutePath}")
 
-                // Save recorder reference
+                // Save recorder reference to preferences
                 val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
                 prefs.edit()
                     .putString("incident_${incidentId}_audio", audioFile.absolutePath)
@@ -335,27 +348,58 @@ class AudioDetectionService : Service() {
 
                 // Auto-stop after max duration
                 delay(Constants.MAX_RECORDING_DURATION_MS)
-                val duration = System.currentTimeMillis() - startTime
-                recorder.stop()
-                recorder.release()
-                audioRecorder = null
-                Log.w(TAG, " Audio recording stopped and saved to HIDDEN storage")
 
-                // Save to database
-                database.evidenceDao().insertEvidence(
-                    EvidenceItem(
-                        incidentId = incidentId,
-                        type = "audio",
-                        filePath = audioFile.absolutePath,
-                        timestamp = startTime,
-                        duration = duration,
-                        fileSize = audioFile.length()
+                // Stop and finalize recording
+                try {
+                    recorder.stop()
+                    recorder.release()
+                    audioRecorder = null
+
+                    val duration = System.currentTimeMillis() - startTime
+                    val fileSize = audioFile.length()
+
+                    Log.w(
+                        TAG,
+                        "🛑 Audio recording stopped (${fileSize / 1024}KB, ${duration / 1000}s)"
                     )
-                )
-                Log.w(TAG, "💾 Audio evidence saved to DATABASE")
+
+                    // Save to database
+                    try {
+                        val evidence = EvidenceItem(
+                            incidentId = incidentId,
+                            type = "audio",
+                            filePath = audioFile.absolutePath,
+                            timestamp = startTime,
+                            duration = duration,
+                            fileSize = fileSize
+                        )
+                        database.evidenceDao().insertEvidence(evidence)
+                        Log.w(TAG, "💾 Audio evidence saved to DATABASE (incident: $incidentId)")
+
+                        // Verify it was saved
+                        val saved = database.evidenceDao().getEvidenceForIncident(incidentId)
+                        Log.w(
+                            TAG,
+                            "✅ Verification: ${saved.size} evidence items for incident $incidentId"
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Failed to save audio evidence to database", e)
+                        e.printStackTrace()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Error stopping audio recorder", e)
+                    e.printStackTrace()
+                    try {
+                        recorder.release()
+                        audioRecorder = null
+                    } catch (ex: Exception) {
+                        Log.e(TAG, "Failed to release recorder after error", ex)
+                    }
+                }
 
             } catch (e: Exception) {
-                Log.e(TAG, "Audio recording error", e)
+                Log.e(TAG, "❌ Audio recording initialization error", e)
+                e.printStackTrace()
                 try {
                     recorder?.release()
                     audioRecorder = null

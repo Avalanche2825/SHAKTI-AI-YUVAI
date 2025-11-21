@@ -143,18 +143,17 @@ class VideoRecorderService : LifecycleService() {
         isRecording = true
         recordingStartTime = System.currentTimeMillis()
 
-        // Get or create incident ID
-        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-
-        // Use incident ID from intent if provided, otherwise get from preferences or create new
+        // Use incident ID from intent (should always be provided now)
         currentIncidentId = incidentIdFromIntent
-            ?: prefs.getString("current_incident_id", null)
-                    ?: java.util.UUID.randomUUID().toString().also {
-                prefs.edit().putString("current_incident_id", it).apply()
-            }
 
-        // If we created a new incident, also create it in database
-        if (incidentIdFromIntent == null && prefs.getString("current_incident_id", null) == null) {
+        if (currentIncidentId == null) {
+            // Fallback: create new incident if not provided
+            currentIncidentId = "incident_${System.currentTimeMillis()}"
+            android.util.Log.w(
+                "VideoRecorder",
+                "⚠️ No incident_id provided, created new: $currentIncidentId"
+            )
+
             // Create incident record in database
             serviceScope.launch {
                 try {
@@ -168,12 +167,18 @@ class VideoRecorderService : LifecycleService() {
                     )
                     android.util.Log.w(
                         "VideoRecorder",
-                        "✅ Incident created in database: $currentIncidentId"
+                        "✅ Fallback incident created in database: $currentIncidentId"
                     )
                 } catch (e: Exception) {
-                    android.util.Log.e("VideoRecorder", "Failed to create incident", e)
+                    android.util.Log.e("VideoRecorder", "❌ Failed to create fallback incident", e)
+                    e.printStackTrace()
                 }
             }
+        } else {
+            android.util.Log.w(
+                "VideoRecorder",
+                "✅ Using incident_id from intent: $currentIncidentId"
+            )
         }
 
         android.util.Log.w(
@@ -292,38 +297,79 @@ class VideoRecorderService : LifecycleService() {
 
             is VideoRecordEvent.Finalize -> {
                 if (!event.hasError()) {
-                    val videoPath = event.outputResults.outputUri.path ?: return
+                    val videoPath = event.outputResults.outputUri.path
+                    if (videoPath == null) {
+                        android.util.Log.e("VideoRecorder", "❌ Video path is null for $cameraType")
+                        return
+                    }
+
                     val videoFile = File(videoPath)
+                    if (!videoFile.exists()) {
+                        android.util.Log.e(
+                            "VideoRecorder",
+                            "❌ Video file doesn't exist: $videoPath"
+                        )
+                        return
+                    }
+
+                    val fileSize = videoFile.length()
+                    val duration = System.currentTimeMillis() - recordingStartTime
 
                     android.util.Log.w(
                         "VideoRecorder",
-                        "📹 $cameraType video saved to HIDDEN storage: $videoPath"
+                        "📹 $cameraType video saved: $videoPath (${fileSize / 1024}KB, ${duration / 1000}s)"
                     )
 
                     // Save evidence metadata to DATABASE
-                    currentIncidentId?.let { incidentId ->
+                    val incidentId = currentIncidentId
+                    if (incidentId != null) {
                         serviceScope.launch {
-                            database.evidenceDao().insertEvidence(
-                                EvidenceItem(
+                            try {
+                                val evidence = EvidenceItem(
                                     incidentId = incidentId,
                                     type = "video_$cameraType",
                                     filePath = videoPath,
                                     timestamp = System.currentTimeMillis(),
-                                    duration = System.currentTimeMillis() - recordingStartTime,
-                                    fileSize = videoFile.length()
+                                    duration = duration,
+                                    fileSize = fileSize
                                 )
-                            )
-                            android.util.Log.w("VideoRecorder", "💾 Evidence saved to DATABASE")
-                        }
-                    }
+                                database.evidenceDao().insertEvidence(evidence)
+                                android.util.Log.w(
+                                    "VideoRecorder",
+                                    "💾 Evidence saved to DATABASE (incident: $incidentId, type: video_$cameraType)"
+                                )
 
-                    // Also save to preferences (backward compatibility)
-                    saveEvidenceMetadata(videoPath, cameraType)
+                                // Verify it was saved
+                                val saved =
+                                    database.evidenceDao().getEvidenceForIncident(incidentId)
+                                android.util.Log.w(
+                                    "VideoRecorder",
+                                    "✅ Verification: ${saved.size} evidence items for incident $incidentId"
+                                )
+                            } catch (e: Exception) {
+                                android.util.Log.e(
+                                    "VideoRecorder",
+                                    "❌ Failed to save evidence to database",
+                                    e
+                                )
+                                e.printStackTrace()
+                            }
+                        }
+
+                        // Also save to preferences (backward compatibility)
+                        saveEvidenceMetadata(videoPath, cameraType)
+                    } else {
+                        android.util.Log.e(
+                            "VideoRecorder",
+                            "❌ No incident_id available, cannot save evidence"
+                        )
+                    }
                 } else {
                     android.util.Log.e(
                         "VideoRecorder",
                         "❌ Error recording $cameraType: ${event.cause?.message}"
                     )
+                    event.cause?.printStackTrace()
                 }
             }
         }
