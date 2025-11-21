@@ -9,6 +9,7 @@ import com.shakti.ai.data.IncidentRecord
 import com.shakti.ai.databinding.ActivityIncidentReportBinding
 import com.shakti.ai.utils.Constants
 import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -64,6 +65,10 @@ class IncidentReportActivity : AppCompatActivity() {
                 } else {
                     // Get the most recent incident
                     val allIncidents = database.incidentDao().getAllIncidents()
+                    android.util.Log.d(
+                        "IncidentReport",
+                        "📊 Total incidents in database: ${allIncidents.size}"
+                    )
                     allIncidents.maxByOrNull { it.startTime }
                 }
 
@@ -71,11 +76,28 @@ class IncidentReportActivity : AppCompatActivity() {
                     runOnUiThread {
                         binding.tvNoData.visibility = android.view.View.VISIBLE
                         binding.tvNoData.text = "No incident data available"
+                        android.util.Log.w("IncidentReport", "❌ No incident found in database")
                     }
                     return@launch
                 }
 
+                android.util.Log.d("IncidentReport", "✅ Loaded incident: ${incident.id}")
+                android.util.Log.d(
+                    "IncidentReport",
+                    "   Start time: ${java.util.Date(incident.startTime)}"
+                )
+                android.util.Log.d("IncidentReport", "   Trigger: ${incident.triggerType}")
+
                 val evidence = database.evidenceDao().getEvidenceForIncident(incident.id)
+                android.util.Log.d("IncidentReport", "📁 Evidence count: ${evidence.size}")
+
+                // Log each evidence item
+                evidence.forEach { ev ->
+                    android.util.Log.d(
+                        "IncidentReport",
+                        "   - ${ev.type}: ${ev.filePath} (${ev.fileSize} bytes)"
+                    )
+                }
 
                 runOnUiThread {
                     // Hide "no data" message
@@ -117,29 +139,91 @@ class IncidentReportActivity : AppCompatActivity() {
                     val backVideos = evidence.filter { it.type == "video_back" }
                     val audioFiles = evidence.filter { it.type == "audio" }
 
-                    binding.tvFrontVideo.text = if (frontVideos.isNotEmpty()) {
-                        "Front Camera: ✓ ${frontVideos.size} recorded"
-                    } else {
-                        "Front Camera: Checking..."
+                    // Check if incident is recent (within last 5 minutes) - might still be recording
+                    val incidentAge = System.currentTimeMillis() - incident.startTime
+                    val isRecent = incidentAge < (5 * 60 * 1000) // 5 minutes
+
+                    android.util.Log.d(
+                        "IncidentReport",
+                        "Incident age: ${incidentAge / 1000}s, isRecent: $isRecent"
+                    )
+
+                    binding.tvFrontVideo.text = when {
+                        frontVideos.isNotEmpty() -> {
+                            val video = frontVideos.first()
+                            val exists = File(video.filePath).exists()
+                            android.util.Log.d(
+                                "IncidentReport",
+                                "Front video exists: $exists (${video.filePath})"
+                            )
+                            if (exists) {
+                                "Front Camera: ✓ Recorded (${video.fileSize / 1024}KB)"
+                            } else {
+                                "Front Camera: ✓ ${frontVideos.size} recorded (file moved)"
+                            }
+                        }
+
+                        isRecent && incident.endTime == 0L -> "Front Camera: 🎥 Recording..."
+                        isRecent -> "Front Camera: ⏳ Processing..."
+                        else -> "Front Camera: Not recorded"
                     }
 
-                    binding.tvBackVideo.text = if (backVideos.isNotEmpty()) {
-                        "Back Camera: ✓ ${backVideos.size} recorded"
-                    } else {
-                        "Back Camera: Checking..."
+                    binding.tvBackVideo.text = when {
+                        backVideos.isNotEmpty() -> {
+                            val video = backVideos.first()
+                            val exists = File(video.filePath).exists()
+                            android.util.Log.d(
+                                "IncidentReport",
+                                "Back video exists: $exists (${video.filePath})"
+                            )
+                            if (exists) {
+                                "Back Camera: ✓ Recorded (${video.fileSize / 1024}KB)"
+                            } else {
+                                "Back Camera: ✓ ${backVideos.size} recorded (file moved)"
+                            }
+                        }
+
+                        isRecent && incident.endTime == 0L -> "Back Camera: 🎥 Recording..."
+                        isRecent -> "Back Camera: ⏳ Processing..."
+                        else -> "Back Camera: Not recorded"
                     }
 
-                    binding.tvAudioRecording.text = if (audioFiles.isNotEmpty()) {
-                        "Audio: ✓ ${audioFiles.size} recorded"
-                    } else {
-                        "Audio: Checking..."
+                    binding.tvAudioRecording.text = when {
+                        audioFiles.isNotEmpty() -> {
+                            val audio = audioFiles.first()
+                            val exists = File(audio.filePath).exists()
+                            android.util.Log.d(
+                                "IncidentReport",
+                                "Audio exists: $exists (${audio.filePath})"
+                            )
+                            if (exists) {
+                                "Audio: ✓ Recorded (${audio.fileSize / 1024}KB)"
+                            } else {
+                                "Audio: ✓ ${audioFiles.size} recorded (file moved)"
+                            }
+                        }
+
+                        isRecent && incident.endTime == 0L -> "Audio: 🎙️ Recording..."
+                        isRecent -> "Audio: ⏳ Processing..."
+                        else -> "Audio: Not recorded"
+                    }
+
+                    // If no evidence and not recent, show warning
+                    if (evidence.isEmpty() && !isRecent) {
+                        binding.tvNoData.visibility = android.view.View.VISIBLE
+                        binding.tvNoData.text = "⚠️ No evidence recorded for this incident"
+                        android.util.Log.w(
+                            "IncidentReport",
+                            "⚠️ No evidence found for incident ${incident.id}"
+                        )
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                android.util.Log.e("IncidentReport", "❌ Error loading incident data", e)
                 runOnUiThread {
                     binding.tvNoData.visibility = android.view.View.VISIBLE
-                    binding.tvNoData.text = "Error loading incident data"
+                    binding.tvNoData.text = "Error loading incident data: ${e.message}"
 
                     // Show default values
                     binding.tvTimestamp.text = "Time: Error loading"
@@ -238,5 +322,16 @@ class IncidentReportActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh data when returning to activity (in case recording finished)
+        android.util.Log.d("IncidentReport", "🔄 Activity resumed, refreshing data...")
+        loadIncidentData()
     }
 }
