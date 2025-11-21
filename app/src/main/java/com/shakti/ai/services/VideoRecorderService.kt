@@ -199,6 +199,8 @@ class VideoRecorderService : LifecycleService() {
 
     /**
      * Setup both front and back cameras
+     * FIXED: Record BACK camera only for better quality (front camera on most phones is lower quality)
+     * Back camera captures surroundings and evidence better
      */
     private fun setupCameras() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
@@ -207,19 +209,15 @@ class VideoRecorderService : LifecycleService() {
             try {
                 val cameraProvider = cameraProviderFuture.get()
 
-                // Start front camera recording
-                startCameraRecording(
-                    cameraProvider,
-                    CameraSelector.DEFAULT_FRONT_CAMERA,
-                    "front"
-                )
-
-                // Start back camera recording
+                // Priority: Record BACK camera (better quality, captures surroundings)
+                // Most phones have better back camera (higher resolution)
                 startCameraRecording(
                     cameraProvider,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     "back"
                 )
+
+                android.util.Log.w("VideoRecorder", "📹 Recording with BACK camera (best quality)")
 
             } catch (e: Exception) {
                 android.util.Log.e("VideoRecorder", "Camera setup failed", e)
@@ -238,12 +236,12 @@ class VideoRecorderService : LifecycleService() {
         cameraType: String
     ) {
         try {
-            // Create recorder
+            // Create recorder with HIGHEST quality
             val recorder = Recorder.Builder()
                 .setQualitySelector(
                     QualitySelector.from(
-                        Quality.HD, // 720p
-                        FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
+                        Quality.HIGHEST, // Use highest available quality
+                        FallbackStrategy.lowerQualityOrHigherThan(Quality.HD)
                     )
                 )
                 .build()
@@ -254,17 +252,15 @@ class VideoRecorderService : LifecycleService() {
             val videoFile = createVideoFile(cameraType)
             val outputOptions = FileOutputOptions.Builder(videoFile).build()
 
-            // Unbind previous use cases
-            cameraProvider.unbindAll()
-
-            // Bind to lifecycle
+            // DON'T unbind all - allows multiple cameras potentially
+            // Just bind this camera
             cameraProvider.bindToLifecycle(
                 this,
                 cameraSelector,
                 videoCapture
             )
 
-            // Start recording
+            // Start recording with AUDIO enabled
             val recording = videoCapture.output
                 .prepareRecording(this, outputOptions)
                 .withAudioEnabled() // Capture audio along with video
@@ -279,10 +275,14 @@ class VideoRecorderService : LifecycleService() {
                 backCameraRecording = recording
             }
 
-            android.util.Log.d("VideoRecorder", "🎥 $cameraType camera recording started")
+            android.util.Log.w(
+                "VideoRecorder",
+                "🎥 $cameraType camera recording started (HIGHEST quality)"
+            )
 
         } catch (e: Exception) {
             android.util.Log.e("VideoRecorder", "Failed to start $cameraType camera", e)
+            e.printStackTrace()
         }
     }
 
@@ -440,7 +440,7 @@ class VideoRecorderService : LifecycleService() {
     }
 
     /**
-     * Create STEALTH notification (minimal, no sound, no vibration)
+     * Create ULTRA STEALTH notification (completely invisible and unrecognizable)
      */
     private fun createStealthNotification(): Notification {
         val intent = Intent(this, CalculatorActivity::class.java)
@@ -449,19 +449,23 @@ class VideoRecorderService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // MAXIMUM STEALTH: Minimal notification, NO sound, NO vibration, LOW priority
+        // ULTRA STEALTH: Completely invisible, looks like Android system service
         return NotificationCompat.Builder(this, ShaktiApplication.CHANNEL_ID_RECORDING)
-            .setContentTitle("System") // Generic title
-            .setContentText("Running") // Minimal text
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Use system icon
+            .setContentTitle("") // BLANK title (completely invisible)
+            .setContentText("") // BLANK text
+            .setSmallIcon(android.R.drawable.ic_popup_sync) // Tiny system sync icon (barely visible)
             .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN) // Minimal visibility
+            .setOngoing(false) // Can be dismissed
+            .setPriority(NotificationCompat.PRIORITY_MIN) // Lowest priority
             .setSound(null) // NO SOUND
             .setVibrate(null) // NO VIBRATION
-            .setSilent(true) // SILENT
-            .setShowWhen(false) // Hide timestamp
+            .setSilent(true) // COMPLETELY SILENT
+            .setShowWhen(false) // NO timestamp
             .setVisibility(NotificationCompat.VISIBILITY_SECRET) // Hide from lock screen
+            .setOnlyAlertOnce(true) // Don't alert again
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE) // Start immediately but silently
+            .setCategory(NotificationCompat.CATEGORY_SERVICE) // System service category
+            .setGroup("android_system") // Group as system notification
             .build()
     }
 

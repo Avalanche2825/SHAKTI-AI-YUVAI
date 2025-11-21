@@ -68,7 +68,7 @@ class LocationService : Service() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         database = EvidenceDatabase.getDatabase(this)
 
-        // Start as foreground service with STEALTH notification
+        // Start as foreground service with ULTRA STEALTH notification
         startForeground(NOTIFICATION_ID, createStealthNotification("Tracking"))
 
         setupLocationCallback()
@@ -250,7 +250,7 @@ class LocationService : Service() {
     }
 
     /**
-     * Create STEALTH foreground notification
+     * Create ULTRA STEALTH foreground notification (completely invisible)
      */
     private fun createStealthNotification(message: String): Notification {
         val intent = Intent(this, CalculatorActivity::class.java)
