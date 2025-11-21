@@ -264,14 +264,16 @@ class EscapePlannerActivity : AppCompatActivity() {
             )
 
             fabChat.setOnClickListener {
+                // Create and show chat fragment
                 val fragment = com.shakti.ai.ui.components.AIChatFragment.newInstance(
                     com.shakti.ai.models.ChatContext.ESCAPE
                 )
 
-                // Show as bottom sheet dialog
-                val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(this)
-                dialog.setContentView(fragment.requireView())
-                dialog.show()
+                // Show in a dialog fragment style
+                supportFragmentManager.beginTransaction()
+                    .add(android.R.id.content, fragment, "chat_fragment")
+                    .addToBackStack("chat")
+                    .commit()
             }
 
             // Add to layout if root is ViewGroup

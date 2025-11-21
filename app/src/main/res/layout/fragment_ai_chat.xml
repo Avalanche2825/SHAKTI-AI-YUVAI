@@ -69,7 +69,7 @@
 
     <!-- Typing Indicator -->
     <LinearLayout
-        android:id="@+id/layoutTyping"
+        android:id="@+id/progressTyping"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -81,7 +81,6 @@
         app:layout_constraintStart_toStartOf="parent">
 
         <ProgressBar
-            android:id="@+id/progressTyping"
             style="?android:attr/progressBarStyleSmall"
             android:layout_width="16dp"
             android:layout_height="16dp"
