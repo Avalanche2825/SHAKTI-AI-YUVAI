@@ -200,20 +200,39 @@ class AudioDetectionService : Service() {
     private fun triggerEmergencyResponse(confidence: Float) {
         Log.w(TAG, "🚨 TRIGGERING FULL EMERGENCY RESPONSE")
 
-        // Save incident timestamp
+        // Save incident timestamp and create incident in database
         val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
         val incidentId = UUID.randomUUID().toString()
         prefs.edit()
             .putString("current_incident_id", incidentId)
             .putLong("incident_${incidentId}_start_time", System.currentTimeMillis())
             .putFloat("incident_${incidentId}_confidence", confidence)
+            .putInt("total_incidents", prefs.getInt("total_incidents", 0) + 1)
+            .putLong("last_incident_time", System.currentTimeMillis())
             .apply()
+
+        // Create incident record in DATABASE
+        serviceScope.launch {
+            try {
+                val incident = com.shakti.ai.data.IncidentRecord(
+                    id = incidentId,
+                    startTime = System.currentTimeMillis(),
+                    triggerType = "ai_detection",
+                    confidence = confidence
+                )
+                database.incidentDao().insertIncident(incident)
+                Log.w(TAG, "✅ Incident record created in database: $incidentId")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create incident in database", e)
+            }
+        }
 
         // 1. Start VIDEO recording (with audio)
         try {
             val videoIntent = Intent(this, VideoRecorderService::class.java)
             videoIntent.action = VideoRecorderService.ACTION_START_RECORDING
             videoIntent.putExtra("threat_confidence", confidence)
+            videoIntent.putExtra("incident_id", incidentId)
             ContextCompat.startForegroundService(this, videoIntent)
             Log.w(TAG, "✅ Video recording service started")
         } catch (e: Exception) {
@@ -231,6 +250,7 @@ class AudioDetectionService : Service() {
         // 3. Start location tracking
         try {
             val locationIntent = Intent(this, LocationService::class.java)
+            locationIntent.putExtra("incident_id", incidentId)
             ContextCompat.startForegroundService(this, locationIntent)
             Log.w(TAG, "✅ Location tracking started")
         } catch (e: Exception) {
@@ -239,6 +259,40 @@ class AudioDetectionService : Service() {
 
         // 4. Send emergency alerts
         sendEmergencyAlerts(confidence, incidentId)
+
+        // 5. Show notification to user
+        showEmergencyNotification(incidentId)
+    }
+
+    /**
+     * Show emergency notification to user
+     */
+    private fun showEmergencyNotification(incidentId: String) {
+        try {
+            val notificationManager =
+                getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+
+            val intent = Intent(this, com.shakti.ai.ui.CalculatorActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(
+                this, 0, intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+
+            val notification = NotificationCompat.Builder(this, ShaktiApplication.CHANNEL_ID_THREAT)
+                .setContentTitle("🚨 Emergency Alert Active")
+                .setContentText("Recording evidence... Tap to stop")
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(false)
+                .setOngoing(true)
+                .build()
+
+            notificationManager.notify(9999, notification)
+            Log.w(TAG, "📢 Emergency notification shown")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show emergency notification", e)
+        }
     }
 
     /**
@@ -340,6 +394,15 @@ class AudioDetectionService : Service() {
             .putString("incident_${incidentId}_user_id", userId)
             .apply()
 
+        // Show toast notification that emergency is active
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(
+                this,
+                "🚨 EMERGENCY ALERT SENT!\nRecording evidence...",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+
         // TODO: Implement Firebase push notification logic
         // - Get emergency contacts from Firebase
         // - Send push notifications with location
@@ -355,7 +418,7 @@ class AudioDetectionService : Service() {
      * Handle manual SOS trigger (from secret code 911= or voice command)
      */
     private fun triggerManualSOS() {
-        Log.w(TAG, " Manual SOS triggered (from secret code or voice command)")
+        Log.w(TAG, "🚨 Manual SOS triggered (from secret code or voice command)")
         onThreatDetected(1.0f) // Max confidence for manual trigger
     }
 

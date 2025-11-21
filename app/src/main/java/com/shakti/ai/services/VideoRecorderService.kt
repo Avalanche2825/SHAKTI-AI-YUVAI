@@ -85,7 +85,8 @@ class VideoRecorderService : LifecycleService() {
         when (intent?.action) {
             ACTION_START_RECORDING -> {
                 val threatConfidence = intent.getFloatExtra("threat_confidence", 0f)
-                startRecording(threatConfidence)
+                val incidentId = intent.getStringExtra("incident_id")
+                startRecording(threatConfidence, incidentId)
             }
 
             ACTION_STOP_RECORDING -> stopRecording()
@@ -129,7 +130,7 @@ class VideoRecorderService : LifecycleService() {
     /**
      * Start recording from both cameras
      */
-    private fun startRecording(threatConfidence: Float) {
+    private fun startRecording(threatConfidence: Float, incidentIdFromIntent: String?) {
         if (isRecording) return
 
         // Check permissions
@@ -144,25 +145,41 @@ class VideoRecorderService : LifecycleService() {
 
         // Get or create incident ID
         val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-        currentIncidentId = prefs.getString("current_incident_id", null)
-        if (currentIncidentId == null) {
-            currentIncidentId = java.util.UUID.randomUUID().toString()
-            prefs.edit().putString("current_incident_id", currentIncidentId).apply()
 
+        // Use incident ID from intent if provided, otherwise get from preferences or create new
+        currentIncidentId = incidentIdFromIntent
+            ?: prefs.getString("current_incident_id", null)
+                    ?: java.util.UUID.randomUUID().toString().also {
+                prefs.edit().putString("current_incident_id", it).apply()
+            }
+
+        // If we created a new incident, also create it in database
+        if (incidentIdFromIntent == null && prefs.getString("current_incident_id", null) == null) {
             // Create incident record in database
             serviceScope.launch {
-                database.incidentDao().insertIncident(
-                    IncidentRecord(
-                        id = currentIncidentId!!,
-                        startTime = recordingStartTime,
-                        triggerType = "ai_detection",
-                        confidence = threatConfidence
+                try {
+                    database.incidentDao().insertIncident(
+                        IncidentRecord(
+                            id = currentIncidentId!!,
+                            startTime = recordingStartTime,
+                            triggerType = "manual_video",
+                            confidence = threatConfidence
+                        )
                     )
-                )
+                    android.util.Log.w(
+                        "VideoRecorder",
+                        "✅ Incident created in database: $currentIncidentId"
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("VideoRecorder", "Failed to create incident", e)
+                }
             }
         }
 
-        android.util.Log.w("VideoRecorder", "🎥 STEALTH RECORDING STARTED (NO notifications)")
+        android.util.Log.w(
+            "VideoRecorder",
+            "🎥 STEALTH RECORDING STARTED (Incident: $currentIncidentId)"
+        )
 
         // Setup cameras
         setupCameras()

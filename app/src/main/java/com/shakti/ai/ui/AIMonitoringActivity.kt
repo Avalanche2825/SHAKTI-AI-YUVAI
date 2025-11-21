@@ -97,7 +97,16 @@ class AIMonitoringActivity : AppCompatActivity() {
             addAction("com.shakti.ai.AUDIO_LEVEL_UPDATE")
             addAction("com.shakti.ai.HELP_DETECTION_UPDATE")
         }
-        registerReceiver(audioLevelReceiver, filter)
+
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(audioLevelReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(audioLevelReceiver, filter)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AIMonitoring", "Failed to register receiver", e)
+        }
     }
 
     private fun setupToolbar() {

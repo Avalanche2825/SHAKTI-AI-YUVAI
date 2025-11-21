@@ -46,6 +46,7 @@ class LocationService : Service() {
     private var isTracking = false
     private lateinit var database: EvidenceDatabase
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var currentIncidentId: String? = null
 
     private val locationHistory = mutableListOf<LocationData>()
 
@@ -185,35 +186,44 @@ class LocationService : Service() {
      * Save current location to preferences
      */
     private fun saveCurrentLocation(locationData: LocationData) {
-        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-        val incidentId = prefs.getString("current_incident_id", UUID.randomUUID().toString())
-
-        val editor = prefs.edit()
-        editor.putString("incident_${incidentId}_latitude", locationData.latitude.toString())
-        editor.putString("incident_${incidentId}_longitude", locationData.longitude.toString())
-        editor.putString("incident_${incidentId}_address", locationData.address)
-        editor.putLong("incident_${incidentId}_location_timestamp", locationData.timestamp)
-        editor.apply()
+        currentIncidentId?.let {
+            val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+            val editor = prefs.edit()
+            editor.putString("incident_${it}_latitude", locationData.latitude.toString())
+            editor.putString("incident_${it}_longitude", locationData.longitude.toString())
+            editor.putString("incident_${it}_address", locationData.address)
+            editor.putLong("incident_${it}_location_timestamp", locationData.timestamp)
+            editor.apply()
+        }
     }
 
     /**
      * Update incident record with location in database
      */
     private fun updateIncidentLocation(locationData: LocationData) {
-        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-        val incidentId = prefs.getString("current_incident_id", null)
+        val incidentId = currentIncidentId
+            ?: getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+                .getString("current_incident_id", null)
 
         incidentId?.let {
             serviceScope.launch {
-                val incident = database.incidentDao().getIncidentById(it)
-                incident?.let { inc ->
-                    database.incidentDao().updateIncident(
-                        inc.copy(
-                            latitude = locationData.latitude,
-                            longitude = locationData.longitude,
-                            address = locationData.address
+                try {
+                    val incident = database.incidentDao().getIncidentById(it)
+                    incident?.let { inc ->
+                        database.incidentDao().updateIncident(
+                            inc.copy(
+                                latitude = locationData.latitude,
+                                longitude = locationData.longitude,
+                                address = locationData.address
+                            )
                         )
-                    )
+                        android.util.Log.d(
+                            "LocationService",
+                            "✅ Location updated in database for incident: $it"
+                        )
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("LocationService", "Failed to update location", e)
                 }
             }
         }
@@ -271,5 +281,16 @@ class LocationService : Service() {
         super.onDestroy()
         stopLocationUpdates()
         serviceScope.cancel()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Get incident ID from intent if provided
+        currentIncidentId = intent?.getStringExtra("incident_id")
+            ?: getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+                .getString("current_incident_id", null)
+
+        android.util.Log.d("LocationService", "Location tracking for incident: $currentIncidentId")
+
+        return START_STICKY
     }
 }
