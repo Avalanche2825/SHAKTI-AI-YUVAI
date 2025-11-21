@@ -34,6 +34,7 @@ class EscapePlannerActivity : AppCompatActivity() {
         setupInputs()
         setupButtons()
         loadSafeHouses()
+        setupAIChatButton()
     }
 
     /**
@@ -247,5 +248,47 @@ class EscapePlannerActivity : AppCompatActivity() {
             }
             .setNegativeButton("Close", null)
             .show()
+    }
+
+    /**
+     * Setup AI Chat Assistant button
+     */
+    private fun setupAIChatButton() {
+        try {
+            // Create FAB programmatically if not in layout
+            val fabChat =
+                com.google.android.material.floatingactionbutton.FloatingActionButton(this)
+            fabChat.setImageResource(android.R.drawable.ic_dialog_info)
+            fabChat.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(this, com.shakti.ai.R.color.accent)
+            )
+
+            fabChat.setOnClickListener {
+                val fragment = com.shakti.ai.ui.components.AIChatFragment.newInstance(
+                    com.shakti.ai.models.ChatContext.ESCAPE
+                )
+
+                // Show as bottom sheet dialog
+                val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+                dialog.setContentView(fragment.requireView())
+                dialog.show()
+            }
+
+            // Add to layout if root is ViewGroup
+            val rootView = binding.root
+            if (rootView is android.view.ViewGroup) {
+                val params = android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+                    setMargins(0, 0, 48, 48)
+                }
+                rootView.addView(fabChat, params)
+            }
+        } catch (e: Exception) {
+            // FAB creation failed, skip silently
+            android.util.Log.e("EscapePlanner", "Failed to add chat FAB: ${e.message}")
+        }
     }
 }
