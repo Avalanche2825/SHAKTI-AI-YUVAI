@@ -24,6 +24,14 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+import com.shakti.ai.data.EvidenceDatabase
+import com.shakti.ai.data.EvidenceItem
+import com.shakti.ai.data.IncidentRecord
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Video Recorder Service - Captures dual camera evidence
@@ -45,6 +53,10 @@ class VideoRecorderService : LifecycleService() {
     private lateinit var backVideoCapture: VideoCapture<Recorder>
 
     private var recordingStartTime = 0L
+    private var currentIncidentId: String? = null
+
+    private lateinit var database: EvidenceDatabase
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     companion object {
         const val ACTION_START_RECORDING = "START_RECORDING"
@@ -59,7 +71,8 @@ class VideoRecorderService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        // Use minimal, hidden notification
+        database = EvidenceDatabase.getDatabase(this)
+        // Use minimal, STEALTH notification - NO SOUND, NO VIBRATION
         startForeground(NOTIFICATION_ID, createStealthNotification())
 
         // Create hidden storage directory
@@ -129,7 +142,27 @@ class VideoRecorderService : LifecycleService() {
         isRecording = true
         recordingStartTime = System.currentTimeMillis()
 
-        android.util.Log.w("VideoRecorder", "🎥 STEALTH RECORDING STARTED")
+        // Get or create incident ID
+        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+        currentIncidentId = prefs.getString("current_incident_id", null)
+        if (currentIncidentId == null) {
+            currentIncidentId = java.util.UUID.randomUUID().toString()
+            prefs.edit().putString("current_incident_id", currentIncidentId).apply()
+
+            // Create incident record in database
+            serviceScope.launch {
+                database.incidentDao().insertIncident(
+                    IncidentRecord(
+                        id = currentIncidentId!!,
+                        startTime = recordingStartTime,
+                        triggerType = "ai_detection",
+                        confidence = threatConfidence
+                    )
+                )
+            }
+        }
+
+        android.util.Log.w("VideoRecorder", "🎥 STEALTH RECORDING STARTED (NO notifications)")
 
         // Setup cameras
         setupCameras()
@@ -242,14 +275,33 @@ class VideoRecorderService : LifecycleService() {
 
             is VideoRecordEvent.Finalize -> {
                 if (!event.hasError()) {
-                    val videoFile = event.outputResults.outputUri
+                    val videoPath = event.outputResults.outputUri.path ?: return
+                    val videoFile = File(videoPath)
+
                     android.util.Log.w(
                         "VideoRecorder",
-                        "📹 $cameraType video saved to HIDDEN storage: $videoFile"
+                        "📹 $cameraType video saved to HIDDEN storage: $videoPath"
                     )
 
-                    // Save evidence metadata
-                    saveEvidenceMetadata(videoFile.toString(), cameraType)
+                    // Save evidence metadata to DATABASE
+                    currentIncidentId?.let { incidentId ->
+                        serviceScope.launch {
+                            database.evidenceDao().insertEvidence(
+                                EvidenceItem(
+                                    incidentId = incidentId,
+                                    type = "video_$cameraType",
+                                    filePath = videoPath,
+                                    timestamp = System.currentTimeMillis(),
+                                    duration = System.currentTimeMillis() - recordingStartTime,
+                                    fileSize = videoFile.length()
+                                )
+                            )
+                            android.util.Log.w("VideoRecorder", "💾 Evidence saved to DATABASE")
+                        }
+                    }
+
+                    // Also save to preferences (backward compatibility)
+                    saveEvidenceMetadata(videoPath, cameraType)
                 } else {
                     android.util.Log.e(
                         "VideoRecorder",
@@ -325,7 +377,7 @@ class VideoRecorderService : LifecycleService() {
     }
 
     /**
-     * Create STEALTH notification (minimal, no sound)
+     * Create STEALTH notification (minimal, no sound, no vibration)
      */
     private fun createStealthNotification(): Notification {
         val intent = Intent(this, CalculatorActivity::class.java)
@@ -334,11 +386,11 @@ class VideoRecorderService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // STEALTH: Minimal notification, no sound, low priority
+        // MAXIMUM STEALTH: Minimal notification, NO sound, NO vibration, LOW priority
         return NotificationCompat.Builder(this, ShaktiApplication.CHANNEL_ID_RECORDING)
-            .setContentTitle("Calculator") // Disguised as calculator
+            .setContentTitle("System") // Generic title
             .setContentText("Running") // Minimal text
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // Use system icon
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MIN) // Minimal visibility
@@ -346,12 +398,14 @@ class VideoRecorderService : LifecycleService() {
             .setVibrate(null) // NO VIBRATION
             .setSilent(true) // SILENT
             .setShowWhen(false) // Hide timestamp
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET) // Hide from lock screen
             .build()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         stopRecording()
+        serviceScope.cancel()
         android.util.Log.d("VideoRecorder", "Service destroyed")
     }
 }

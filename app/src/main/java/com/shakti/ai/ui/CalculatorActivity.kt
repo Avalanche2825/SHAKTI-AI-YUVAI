@@ -4,10 +4,14 @@ import android.content.Intent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
 import android.os.Vibrator
+import android.os.VibratorManager
 import android.view.View
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.shakti.ai.R
@@ -99,9 +103,52 @@ class CalculatorActivity : AppCompatActivity() {
 
         // Special buttons
         binding.btnDecimal.setOnClickListener { onDecimalClick() }
+        binding.btnDecimal.setOnLongClickListener {
+            stopEmergencyAlertPhysical()
+            true
+        }
         binding.btnEquals.setOnClickListener { onEqualsClick() }
         binding.btnClear.setOnClickListener { onClearClick() }
         binding.btnBackspace.setOnClickListener { onBackspaceClick() }
+
+        // PANIC BUTTON - Long press % button for immediate SOS
+        binding.btnPanic.setOnClickListener {
+            // Normal click does nothing (for disguise)
+            Toast.makeText(this, "Not implemented", Toast.LENGTH_SHORT).show()
+        }
+        binding.btnPanic.setOnLongClickListener {
+            triggerPanicSOS()
+            true
+        }
+    }
+
+    /**
+     * Trigger immediate PANIC SOS (physical button)
+     */
+    private fun triggerPanicSOS() {
+        // Vibrate to confirm
+        vibrate()
+
+        // Show confirmation dialog
+        AlertDialog.Builder(this)
+            .setTitle("⚠️ EMERGENCY PANIC BUTTON")
+            .setMessage(
+                "This will IMMEDIATELY:\n\n" +
+                        "• Start recording evidence\n" +
+                        "• Alert emergency contacts\n" +
+                        "• Share your location\n" +
+                        "• Notify nearby users\n\n" +
+                        "Trigger emergency NOW?"
+            )
+            .setPositiveButton("YES - EMERGENCY!") { _, _ ->
+                triggerSOS()
+                Toast.makeText(this, "🚨 EMERGENCY ACTIVATED!", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(true)
+            .show()
     }
 
     /**
@@ -175,6 +222,12 @@ class CalculatorActivity : AppCompatActivity() {
             Constants.SECRET_CODE_SETTINGS -> {
                 vibrate()
                 openSettings()
+                clearAll()
+                return
+            }
+            Constants.SECRET_CODE_STOP_ALERT -> {
+                vibrate()
+                stopEmergencyAlert()
                 clearAll()
                 return
             }
@@ -444,11 +497,124 @@ class CalculatorActivity : AppCompatActivity() {
     }
 
     /**
+     * Stop emergency alert (from secret code 000=)
+     */
+    private fun stopEmergencyAlert() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("⚠️ Stop Emergency Alert?")
+            .setMessage(
+                "This will STOP:\n\n" +
+                        "• Video/audio recording\n" +
+                        "• Location tracking\n" +
+                        "• Emergency notifications\n\n" +
+                        "Are you safe now?"
+            )
+            .setPositiveButton("YES - STOP") { _, _ ->
+                stopAllEmergencyServices()
+                Toast.makeText(this, "✅ Emergency stopped", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(true)
+            .show()
+    }
+
+    /**
+     * Stop emergency alert (from physical button - long press decimal)
+     */
+    private fun stopEmergencyAlertPhysical() {
+        // Vibrate to confirm
+        vibrate()
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("🛑 STOP EMERGENCY?")
+            .setMessage(
+                "This will immediately STOP:\n\n" +
+                        "• Video/audio recording\n" +
+                        "• Location tracking\n" +
+                        "• Emergency notifications\n" +
+                        "• All active alerts\n\n" +
+                        "Stop emergency now?"
+            )
+            .setPositiveButton("YES - I'M SAFE") { _, _ ->
+                stopAllEmergencyServices()
+                vibrate()
+                Toast.makeText(this, "✅ All emergency services STOPPED", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("No - Keep Active") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(true)
+            .show()
+    }
+
+    /**
+     * Stop all emergency services (video, audio, location)
+     */
+    private fun stopAllEmergencyServices() {
+        try {
+            // Stop video recording service
+            val videoIntent = Intent(this, com.shakti.ai.services.VideoRecorderService::class.java)
+            videoIntent.action = com.shakti.ai.services.VideoRecorderService.ACTION_STOP_RECORDING
+            stopService(videoIntent)
+
+            // Stop audio detection service
+            val audioIntent = Intent(this, com.shakti.ai.services.AudioDetectionService::class.java)
+            audioIntent.action = com.shakti.ai.services.AudioDetectionService.ACTION_STOP_MONITORING
+            stopService(audioIntent)
+
+            // Stop location service
+            val locationIntent = Intent(this, com.shakti.ai.services.LocationService::class.java)
+            stopService(locationIntent)
+
+            // Clear current incident ID
+            val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+            prefs.edit().remove("current_incident_id").apply()
+
+            android.util.Log.w("CalculatorActivity", "🛑 ALL EMERGENCY SERVICES STOPPED")
+
+        } catch (e: Exception) {
+            android.util.Log.e("CalculatorActivity", "Error stopping services", e)
+            Toast.makeText(this, "Error stopping services", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
      * Vibrate phone for tactile feedback
      */
     private fun vibrate() {
-        val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
-        vibrator.vibrate(50)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // Android 12 and above - use VibratorManager
+                val vibratorManager =
+                    getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                val vibrator = vibratorManager.defaultVibrator
+                vibrator.vibrate(
+                    VibrationEffect.createOneShot(
+                        100,
+                        VibrationEffect.DEFAULT_AMPLITUDE
+                    )
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // Android 8.0 and above - use VibrationEffect
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                vibrator.vibrate(
+                    VibrationEffect.createOneShot(
+                        100,
+                        VibrationEffect.DEFAULT_AMPLITUDE
+                    )
+                )
+            } else {
+                // Below Android 8.0 - use deprecated method
+                @Suppress("DEPRECATION")
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(100)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CalculatorActivity", "Vibration failed", e)
+        }
     }
 
     override fun onResume() {

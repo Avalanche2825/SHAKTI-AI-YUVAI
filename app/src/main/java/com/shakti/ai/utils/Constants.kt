@@ -97,4 +97,5 @@ object Constants {
     const val SECRET_CODE_DASHBOARD = "999="
     const val SECRET_CODE_SOS = "911="
     const val SECRET_CODE_SETTINGS = "777="
+    const val SECRET_CODE_STOP_ALERT = "000=" // Stop emergency alert
 }

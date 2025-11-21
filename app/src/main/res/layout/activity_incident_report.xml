@@ -68,6 +68,14 @@
                         android:layout_marginTop="12dp" />
 
                     <TextView
+                        android:id="@+id/tvTriggerType"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Trigger: Loading..."
+                        style="@style/TextBody"
+                        android:layout_marginTop="8dp" />
+
+                    <TextView
                         android:id="@+id/tvLocation"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -119,6 +127,15 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="Back Camera: Checking..."
+                        style="@style/TextBody"
+                        android:layout_marginTop="8dp"
+                        android:drawablePadding="8dp" />
+
+                    <TextView
+                        android:id="@+id/tvAudioRecording"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Audio: Checking..."
                         style="@style/TextBody"
                         android:layout_marginTop="8dp"
                         android:drawablePadding="8dp" />

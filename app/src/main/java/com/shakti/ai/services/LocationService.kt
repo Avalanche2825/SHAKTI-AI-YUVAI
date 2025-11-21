@@ -18,8 +18,15 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
 import com.shakti.ai.R
 import com.shakti.ai.ShaktiApplication
+import com.shakti.ai.data.EvidenceDatabase
+import com.shakti.ai.data.IncidentRecord
 import com.shakti.ai.ui.CalculatorActivity
 import com.shakti.ai.utils.Constants
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.util.*
 
 /**
@@ -37,6 +44,8 @@ class LocationService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private var isTracking = false
+    private lateinit var database: EvidenceDatabase
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val locationHistory = mutableListOf<LocationData>()
 
@@ -56,9 +65,10 @@ class LocationService : Service() {
         super.onCreate()
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        database = EvidenceDatabase.getDatabase(this)
 
-        // Start as foreground service
-        startForeground(NOTIFICATION_ID, createNotification("Tracking location..."))
+        // Start as foreground service with STEALTH notification
+        startForeground(NOTIFICATION_ID, createStealthNotification("Tracking"))
 
         setupLocationCallback()
         startLocationUpdates()
@@ -124,14 +134,13 @@ class LocationService : Service() {
 
         locationHistory.add(locationData)
 
-        // Update notification with current location
-        updateNotification(
-            "📍 Location: ${String.format("%.6f", location.latitude)}, " +
-                    "${String.format("%.6f", location.longitude)}"
-        )
+        // NO notification update for stealth mode - completely silent
 
         // Save to preferences
         saveCurrentLocation(locationData)
+
+        // Update incident in database
+        updateIncidentLocation(locationData)
 
         android.util.Log.d(
             "LocationService",
@@ -188,6 +197,29 @@ class LocationService : Service() {
     }
 
     /**
+     * Update incident record with location in database
+     */
+    private fun updateIncidentLocation(locationData: LocationData) {
+        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+        val incidentId = prefs.getString("current_incident_id", null)
+
+        incidentId?.let {
+            serviceScope.launch {
+                val incident = database.incidentDao().getIncidentById(it)
+                incident?.let { inc ->
+                    database.incidentDao().updateIncident(
+                        inc.copy(
+                            latitude = locationData.latitude,
+                            longitude = locationData.longitude,
+                            address = locationData.address
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /**
      * Stop location updates
      */
     private fun stopLocationUpdates() {
@@ -208,32 +240,29 @@ class LocationService : Service() {
     }
 
     /**
-     * Create foreground notification
+     * Create STEALTH foreground notification
      */
-    private fun createNotification(message: String): Notification {
+    private fun createStealthNotification(message: String): Notification {
         val intent = Intent(this, CalculatorActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        // MAXIMUM STEALTH: Minimal notification, NO sound, NO vibration, completely hidden
         return NotificationCompat.Builder(this, ShaktiApplication.CHANNEL_ID_LOCATION)
-            .setContentTitle("Location Tracking")
-            .setContentText(message)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("System") // Generic title
+            .setContentText("") // Empty text for stealth
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // System icon
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_MIN) // Minimal visibility
+            .setSound(null) // NO SOUND
+            .setVibrate(null) // NO VIBRATION
+            .setSilent(true) // SILENT
+            .setShowWhen(false) // Hide timestamp
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET) // Hide from lock screen
             .build()
-    }
-
-    /**
-     * Update notification
-     */
-    private fun updateNotification(message: String) {
-        val notification = createNotification(message)
-        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -241,5 +270,6 @@ class LocationService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopLocationUpdates()
+        serviceScope.cancel()
     }
 }

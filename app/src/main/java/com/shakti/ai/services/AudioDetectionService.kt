@@ -13,6 +13,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.shakti.ai.R
 import com.shakti.ai.ShaktiApplication
+import com.shakti.ai.data.EvidenceDatabase
+import com.shakti.ai.data.EvidenceItem
 import com.shakti.ai.ml.HelpWordDetector
 import com.shakti.ai.ui.CalculatorActivity
 import com.shakti.ai.utils.Constants
@@ -36,10 +38,13 @@ import java.util.*
 class AudioDetectionService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private lateinit var database: EvidenceDatabase
 
     // HELP Word Detector - Primary audio monitoring (handles its own AudioRecord)
     private var helpWordDetector: HelpWordDetector? = null
     private var helpDetectionEnabled = true // Default to enabled
+
+    private var audioRecorder: MediaRecorder? = null
 
     // Hidden storage directory
     private val HIDDEN_DIR_NAME = ".system_cache"
@@ -59,11 +64,13 @@ class AudioDetectionService : Service() {
         super.onCreate()
         Log.d(TAG, "✅ Audio Detection Service Created")
 
+        database = EvidenceDatabase.getDatabase(this)
+
         // Create hidden storage directory
         createHiddenStorageDirectory()
 
-        // Start as foreground service
-        startForeground(NOTIFICATION_ID, createNotification("Starting protection..."))
+        // Start as foreground service with STEALTH notification
+        startForeground(NOTIFICATION_ID, createStealthNotification("Protection active"))
     }
 
     /**
@@ -242,6 +249,7 @@ class AudioDetectionService : Service() {
             var recorder: MediaRecorder? = null
             try {
                 val audioFile = createAudioFile(incidentId)
+                val startTime = System.currentTimeMillis()
 
                 // Create MediaRecorder
                 recorder =
@@ -261,6 +269,8 @@ class AudioDetectionService : Service() {
                     start()
                 }
 
+                audioRecorder = recorder
+
                 Log.w(TAG, " Audio recording to HIDDEN storage: ${audioFile.absolutePath}")
 
                 // Save recorder reference
@@ -271,14 +281,30 @@ class AudioDetectionService : Service() {
 
                 // Auto-stop after max duration
                 delay(Constants.MAX_RECORDING_DURATION_MS)
+                val duration = System.currentTimeMillis() - startTime
                 recorder.stop()
                 recorder.release()
+                audioRecorder = null
                 Log.w(TAG, " Audio recording stopped and saved to HIDDEN storage")
+
+                // Save to database
+                database.evidenceDao().insertEvidence(
+                    EvidenceItem(
+                        incidentId = incidentId,
+                        type = "audio",
+                        filePath = audioFile.absolutePath,
+                        timestamp = startTime,
+                        duration = duration,
+                        fileSize = audioFile.length()
+                    )
+                )
+                Log.w(TAG, "💾 Audio evidence saved to DATABASE")
 
             } catch (e: Exception) {
                 Log.e(TAG, "Audio recording error", e)
                 try {
                     recorder?.release()
+                    audioRecorder = null
                 } catch (ex: Exception) {
                     Log.e(TAG, "Failed to release recorder", ex)
                 }
@@ -343,36 +369,50 @@ class AudioDetectionService : Service() {
         helpWordDetector?.stopListening()
         helpWordDetector = null
 
+        // Stop audio recorder if active
+        try {
+            audioRecorder?.stop()
+            audioRecorder?.release()
+            audioRecorder = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to stop audio recorder", e)
+        }
+
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     /**
-     * Create foreground service notification
+     * Create STEALTH foreground service notification
      */
-    private fun createNotification(message: String): Notification {
+    private fun createStealthNotification(message: String): Notification {
         val intent = Intent(this, CalculatorActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        // MAXIMUM STEALTH: Minimal notification, NO sound, NO vibration
         return NotificationCompat.Builder(this, ShaktiApplication.CHANNEL_ID_THREAT)
-            .setContentTitle("SHAKTI Protection")
-            .setContentText(message)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("System") // Generic system title
+            .setContentText("Running") // Minimal text
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // System icon
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW) // Low priority for stealth
+            .setPriority(NotificationCompat.PRIORITY_MIN) // Minimal visibility
             .setSilent(true) // Silent
+            .setSound(null) // NO SOUND
+            .setVibrate(null) // NO VIBRATION
+            .setShowWhen(false) // Hide timestamp
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET) // Hide from lock screen
             .build()
     }
 
     /**
-     * Update notification message
+     * Update notification message (stealth version)
      */
     private fun updateNotification(message: String) {
-        val notification = createNotification(message)
+        val notification = createStealthNotification(message)
         val notificationManager =
             getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)

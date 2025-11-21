@@ -1,9 +1,14 @@
 package com.shakti.ai.ui
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.shakti.ai.data.EvidenceDatabase
+import com.shakti.ai.data.IncidentRecord
 import com.shakti.ai.databinding.ActivityIncidentReportBinding
 import com.shakti.ai.utils.Constants
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -15,15 +20,20 @@ import java.util.*
  * - Show location with map
  * - Timestamp and duration
  * - Share evidence
+ * - Load from DATABASE instead of preferences
  */
 class IncidentReportActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityIncidentReportBinding
+    private lateinit var database: EvidenceDatabase
+    private var currentIncident: IncidentRecord? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityIncidentReportBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        database = EvidenceDatabase.getDatabase(this)
 
         setupToolbar()
         loadIncidentData()
@@ -43,61 +53,108 @@ class IncidentReportActivity : AppCompatActivity() {
     }
 
     private fun loadIncidentData() {
-        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-
-        // Get incident ID (passed via intent or use latest)
+        // Get incident ID (passed via intent or use latest from preferences)
         val incidentId = intent.getStringExtra("incident_id")
-            ?: prefs.getString("current_incident_id", null)
+            ?: getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+                .getString("current_incident_id", null)
 
         if (incidentId == null) {
             binding.tvNoData.visibility = android.view.View.VISIBLE
             return
         }
 
-        // Load timestamp
-        val timestamp = prefs.getLong("incident_${incidentId}_timestamp", 0)
-        if (timestamp > 0) {
-            val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
-            binding.tvTimestamp.text = "Time: ${dateFormat.format(Date(timestamp))}"
-        }
+        // Load from DATABASE
+        lifecycleScope.launch {
+            val incident = database.incidentDao().getIncidentById(incidentId)
+            val evidence = database.evidenceDao().getEvidenceForIncident(incidentId)
 
-        // Load location
-        val latitude = prefs.getString("incident_${incidentId}_latitude", null)
-        val longitude = prefs.getString("incident_${incidentId}_longitude", null)
-        val address = prefs.getString("incident_${incidentId}_address", null)
+            runOnUiThread {
+                if (incident == null) {
+                    binding.tvNoData.visibility = android.view.View.VISIBLE
+                    return@runOnUiThread
+                }
 
-        if (latitude != null && longitude != null) {
-            binding.tvLocation.text = "Location: $latitude, $longitude"
-            if (address != null) {
-                binding.tvAddress.text = address
+                currentIncident = incident
+
+                // Load timestamp
+                val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
+                binding.tvTimestamp.text = "Time: ${dateFormat.format(Date(incident.startTime))}"
+
+                // Load location
+                if (incident.latitude != 0.0 && incident.longitude != 0.0) {
+                    binding.tvLocation.text =
+                        "Location: ${
+                            String.format(
+                                "%.6f",
+                                incident.latitude
+                            )
+                        }, ${String.format("%.6f", incident.longitude)}"
+                    if (incident.address != null) {
+                        binding.tvAddress.text = incident.address
+                    } else {
+                        binding.tvAddress.text = "Address not available"
+                    }
+                } else {
+                    binding.tvLocation.text = "Location: Not available"
+                    binding.tvAddress.text = "Address not available"
+                }
+
+                // Load video evidence count
+                val frontVideos = evidence.filter { it.type == "video_front" }
+                val backVideos = evidence.filter { it.type == "video_back" }
+                val audioFiles = evidence.filter { it.type == "audio" }
+
+                binding.tvFrontVideo.text = if (frontVideos.isNotEmpty()) {
+                    "Front Camera: ✓ ${frontVideos.size} recorded"
+                } else {
+                    "Front Camera: Not available"
+                }
+
+                binding.tvBackVideo.text = if (backVideos.isNotEmpty()) {
+                    "Back Camera: ✓ ${backVideos.size} recorded"
+                } else {
+                    "Back Camera: Not available"
+                }
+
+                binding.tvAudioRecording.text = if (audioFiles.isNotEmpty()) {
+                    "Audio: ✓ ${audioFiles.size} recorded"
+                } else {
+                    "Audio: Not available"
+                }
+
+                // Show trigger type
+                binding.tvTriggerType.text = "Trigger: ${formatTriggerType(incident.triggerType)}"
             }
         }
+    }
 
-        // Load video paths
-        val frontVideo = prefs.getString("incident_${incidentId}_video_front", null)
-        val backVideo = prefs.getString("incident_${incidentId}_video_back", null)
-
-        binding.tvFrontVideo.text = if (frontVideo != null) {
-            "Front Camera: ✓ Recorded"
-        } else {
-            "Front Camera: Not available"
-        }
-
-        binding.tvBackVideo.text = if (backVideo != null) {
-            "Back Camera: ✓ Recorded"
-        } else {
-            "Back Camera: Not available"
+    private fun formatTriggerType(type: String): String {
+        return when (type) {
+            "voice_command" -> "Voice Command (HELP 3x)"
+            "manual_sos" -> "Manual SOS (911=)"
+            "ai_detection" -> "AI Detection"
+            else -> "Unknown"
         }
     }
 
     private fun setupButtons() {
         binding.btnViewEvidence.setOnClickListener {
-            // TODO: Open video player to view evidence
-            android.widget.Toast.makeText(
-                this,
-                "Video player coming soon",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+            // Open Evidence Viewer Activity
+            val incidentId = intent.getStringExtra("incident_id")
+                ?: getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
+                    .getString("current_incident_id", null)
+
+            if (incidentId != null) {
+                val intent = Intent(this, EvidenceViewerActivity::class.java)
+                intent.putExtra("incident_id", incidentId)
+                startActivity(intent)
+            } else {
+                android.widget.Toast.makeText(
+                    this,
+                    "No evidence available",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
         }
 
         binding.btnShareEvidence.setOnClickListener {
@@ -110,38 +167,29 @@ class IncidentReportActivity : AppCompatActivity() {
     }
 
     private fun shareEvidence() {
-        // Share incident details
-        val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-        val incidentId = intent.getStringExtra("incident_id")
-            ?: prefs.getString("current_incident_id", null)
+        currentIncident?.let { incident ->
+            val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
+            val timeStr = dateFormat.format(Date(incident.startTime))
 
-        if (incidentId == null) return
-
-        val timestamp = prefs.getLong("incident_${incidentId}_timestamp", 0)
-        val latitude = prefs.getString("incident_${incidentId}_latitude", "Unknown")
-        val longitude = prefs.getString("incident_${incidentId}_longitude", "Unknown")
-        val address = prefs.getString("incident_${incidentId}_address", "Unknown")
-
-        val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
-        val timeStr = if (timestamp > 0) dateFormat.format(Date(timestamp)) else "Unknown"
-
-        val message = """
+            val message = """
             SHAKTI INCIDENT REPORT
             
             Time: $timeStr
-            Location: $latitude, $longitude
-            Address: $address
+            Location: ${incident.latitude}, ${incident.longitude}
+            Address: ${incident.address ?: "Unknown"}
+            Trigger: ${formatTriggerType(incident.triggerType)}
             
             Evidence has been captured and is available.
-            Incident ID: $incidentId
+            Incident ID: ${incident.id}
         """.trimIndent()
 
-        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND)
-        shareIntent.type = "text/plain"
-        shareIntent.putExtra(android.content.Intent.EXTRA_SUBJECT, "Incident Report - SHAKTI")
-        shareIntent.putExtra(android.content.Intent.EXTRA_TEXT, message)
+            val shareIntent = Intent(Intent.ACTION_SEND)
+            shareIntent.type = "text/plain"
+            shareIntent.putExtra(Intent.EXTRA_SUBJECT, "Incident Report - SHAKTI")
+            shareIntent.putExtra(Intent.EXTRA_TEXT, message)
 
-        startActivity(android.content.Intent.createChooser(shareIntent, "Share incident via"))
+            startActivity(Intent.createChooser(shareIntent, "Share incident via"))
+        }
     }
 
     private fun deleteIncident() {
@@ -149,27 +197,21 @@ class IncidentReportActivity : AppCompatActivity() {
             .setTitle("Delete Incident")
             .setMessage("Are you sure you want to delete this incident and all evidence?")
             .setPositiveButton("Delete") { _, _ ->
-                val prefs = getSharedPreferences(Constants.PREFS_NAME, MODE_PRIVATE)
-                val incidentId = intent.getStringExtra("incident_id")
-                    ?: prefs.getString("current_incident_id", null)
+                currentIncident?.let { incident ->
+                    lifecycleScope.launch {
+                        // Delete from database
+                        database.evidenceDao().deleteEvidenceForIncident(incident.id)
+                        database.incidentDao().deleteIncident(incident)
 
-                if (incidentId != null) {
-                    // Delete all incident data
-                    val editor = prefs.edit()
-                    editor.remove("incident_${incidentId}_timestamp")
-                    editor.remove("incident_${incidentId}_latitude")
-                    editor.remove("incident_${incidentId}_longitude")
-                    editor.remove("incident_${incidentId}_address")
-                    editor.remove("incident_${incidentId}_video_front")
-                    editor.remove("incident_${incidentId}_video_back")
-                    editor.apply()
-
-                    android.widget.Toast.makeText(
-                        this,
-                        "Incident deleted",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                    finish()
+                        runOnUiThread {
+                            android.widget.Toast.makeText(
+                                this@IncidentReportActivity,
+                                "Incident deleted",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            finish()
+                        }
+                    }
                 }
             }
             .setNegativeButton("Cancel", null)
