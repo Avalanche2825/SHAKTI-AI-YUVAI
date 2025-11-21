@@ -64,91 +64,149 @@ class IncidentReportActivity : AppCompatActivity() {
                 } else {
                     // Get the most recent incident
                     val allIncidents = database.incidentDao().getAllIncidents()
-                    allIncidents.maxByOrNull { it.startTime }
-                }
-
-                if (incident == null) {
-                    runOnUiThread {
-                        binding.tvNoData.visibility = android.view.View.VISIBLE
-                        binding.tvNoData.text = "No incident data available"
+                    if (allIncidents.isEmpty()) {
+                        null
+                    } else {
+                        allIncidents.maxByOrNull { it.startTime }
                     }
-                    return@launch
                 }
 
-                val evidence = database.evidenceDao().getEvidenceForIncident(incident.id)
+                // Check if activity is still alive before updating UI
+                if (!isFinishing && !isDestroyed) {
+                    if (incident == null) {
+                        runOnUiThread {
+                            binding.tvNoData.visibility = android.view.View.VISIBLE
+                            binding.tvNoData.text =
+                                "No incident data available. Trigger an emergency to record evidence."
 
-                runOnUiThread {
-                    // Hide "no data" message
-                    binding.tvNoData.visibility = android.view.View.GONE
+                            // Hide other cards
+                            binding.tvTimestamp.text = "Time: No data"
+                            binding.tvTriggerType.text = "Trigger: No data"
+                            binding.tvLocation.text = "Location: No data"
+                            binding.tvAddress.text = "No data"
+                            binding.tvFrontVideo.text = "Front Camera: No recordings"
+                            binding.tvBackVideo.text = "Back Camera: No recordings"
+                            binding.tvAudioRecording.text = "Audio: No recordings"
 
-                    currentIncident = incident
-
-                    // Load timestamp
-                    val dateFormat =
-                        SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
-                    binding.tvTimestamp.text =
-                        "Time: ${dateFormat.format(Date(incident.startTime))}"
-
-                    // Load trigger type
-                    binding.tvTriggerType.text =
-                        "Trigger: ${formatTriggerType(incident.triggerType)}"
-
-                    // Load location
-                    if (incident.latitude != 0.0 && incident.longitude != 0.0) {
-                        binding.tvLocation.text =
-                            "Location: ${
-                                String.format(
-                                    "%.6f",
-                                    incident.latitude
-                                )
-                            }, ${String.format("%.6f", incident.longitude)}"
-                        if (incident.address != null) {
-                            binding.tvAddress.text = incident.address
-                        } else {
-                            binding.tvAddress.text = "Address not available"
+                            // Disable buttons
+                            binding.btnViewEvidence.isEnabled = false
+                            binding.btnShareEvidence.isEnabled = false
+                            binding.btnDeleteIncident.isEnabled = false
                         }
-                    } else {
-                        binding.tvLocation.text = "Location: Checking..."
-                        binding.tvAddress.text = "Address not available"
+                        return@launch
                     }
 
-                    // Load video evidence count
-                    val frontVideos = evidence.filter { it.type == "video_front" }
-                    val backVideos = evidence.filter { it.type == "video_back" }
-                    val audioFiles = evidence.filter { it.type == "audio" }
+                    val evidence = database.evidenceDao().getEvidenceForIncident(incident.id)
 
-                    binding.tvFrontVideo.text = if (frontVideos.isNotEmpty()) {
-                        "Front Camera: ✓ ${frontVideos.size} recorded"
-                    } else {
-                        "Front Camera: Checking..."
-                    }
+                    // Check again before updating UI
+                    if (!isFinishing && !isDestroyed) {
+                        runOnUiThread {
+                            try {
+                                // Hide "no data" message
+                                binding.tvNoData.visibility = android.view.View.GONE
 
-                    binding.tvBackVideo.text = if (backVideos.isNotEmpty()) {
-                        "Back Camera: ✓ ${backVideos.size} recorded"
-                    } else {
-                        "Back Camera: Checking..."
-                    }
+                                currentIncident = incident
 
-                    binding.tvAudioRecording.text = if (audioFiles.isNotEmpty()) {
-                        "Audio: ✓ ${audioFiles.size} recorded"
-                    } else {
-                        "Audio: Checking..."
+                                // Load timestamp
+                                val dateFormat =
+                                    SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
+                                binding.tvTimestamp.text =
+                                    "Time: ${dateFormat.format(Date(incident.startTime))}"
+
+                                // Load trigger type
+                                binding.tvTriggerType.text =
+                                    "Trigger: ${formatTriggerType(incident.triggerType)}"
+
+                                // Load location
+                                if (incident.latitude != 0.0 && incident.longitude != 0.0) {
+                                    binding.tvLocation.text =
+                                        "Location: ${
+                                            String.format(
+                                                "%.6f",
+                                                incident.latitude
+                                            )
+                                        }, ${String.format("%.6f", incident.longitude)}"
+                                    if (incident.address != null && incident.address.isNotEmpty()) {
+                                        binding.tvAddress.text = incident.address
+                                    } else {
+                                        binding.tvAddress.text = "Address not available"
+                                    }
+                                } else {
+                                    binding.tvLocation.text = "Location: Not captured"
+                                    binding.tvAddress.text = "GPS was not available"
+                                }
+
+                                // Load video evidence count
+                                val frontVideos = evidence.filter { it.type == "video_front" }
+                                val backVideos = evidence.filter { it.type == "video_back" }
+                                val audioFiles = evidence.filter { it.type == "audio" }
+
+                                binding.tvFrontVideo.text = if (frontVideos.isNotEmpty()) {
+                                    "Front Camera: ✓ ${frontVideos.size} recorded"
+                                } else {
+                                    "Front Camera: Not recorded"
+                                }
+
+                                binding.tvBackVideo.text = if (backVideos.isNotEmpty()) {
+                                    "Back Camera: ✓ ${backVideos.size} recorded"
+                                } else {
+                                    "Back Camera: Not recorded"
+                                }
+
+                                binding.tvAudioRecording.text = if (audioFiles.isNotEmpty()) {
+                                    "Audio: ✓ ${audioFiles.size} recorded"
+                                } else {
+                                    "Audio: Not recorded"
+                                }
+
+                                // Enable buttons
+                                binding.btnViewEvidence.isEnabled = evidence.isNotEmpty()
+                                binding.btnShareEvidence.isEnabled = true
+                                binding.btnDeleteIncident.isEnabled = true
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                android.widget.Toast.makeText(
+                                    this@IncidentReportActivity,
+                                    "Error displaying incident data",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                runOnUiThread {
-                    binding.tvNoData.visibility = android.view.View.VISIBLE
-                    binding.tvNoData.text = "Error loading incident data"
+                android.util.Log.e("IncidentReport", "Error loading incident: ${e.message}", e)
 
-                    // Show default values
-                    binding.tvTimestamp.text = "Time: Error loading"
-                    binding.tvTriggerType.text = "Trigger: Unknown"
-                    binding.tvLocation.text = "Location: Not available"
-                    binding.tvAddress.text = "Address not available"
-                    binding.tvFrontVideo.text = "Front Camera: Error"
-                    binding.tvBackVideo.text = "Back Camera: Error"
-                    binding.tvAudioRecording.text = "Audio: Error"
+                if (!isFinishing && !isDestroyed) {
+                    runOnUiThread {
+                        try {
+                            binding.tvNoData.visibility = android.view.View.VISIBLE
+                            binding.tvNoData.text = "Error loading incident data: ${e.message}"
+
+                            // Show error values
+                            binding.tvTimestamp.text = "Time: Error loading"
+                            binding.tvTriggerType.text = "Trigger: Error"
+                            binding.tvLocation.text = "Location: Error"
+                            binding.tvAddress.text = "Error"
+                            binding.tvFrontVideo.text = "Front Camera: Error"
+                            binding.tvBackVideo.text = "Back Camera: Error"
+                            binding.tvAudioRecording.text = "Audio: Error"
+
+                            // Disable buttons
+                            binding.btnViewEvidence.isEnabled = false
+                            binding.btnShareEvidence.isEnabled = false
+                            binding.btnDeleteIncident.isEnabled = false
+
+                            android.widget.Toast.makeText(
+                                this@IncidentReportActivity,
+                                "Failed to load incident: ${e.message}",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        } catch (uiException: Exception) {
+                            uiException.printStackTrace()
+                        }
+                    }
                 }
             }
         }
@@ -165,31 +223,68 @@ class IncidentReportActivity : AppCompatActivity() {
 
     private fun setupButtons() {
         binding.btnViewEvidence.setOnClickListener {
-            // Use the current incident that was loaded
-            if (currentIncident != null) {
-                val intent = Intent(this, EvidenceViewerActivity::class.java)
-                intent.putExtra("incident_id", currentIncident!!.id)
-                startActivity(intent)
-            } else {
+            try {
+                // Use the current incident that was loaded
+                if (currentIncident != null) {
+                    val intent = Intent(this, EvidenceViewerActivity::class.java)
+                    intent.putExtra("incident_id", currentIncident!!.id)
+                    startActivity(intent)
+                } else {
+                    android.widget.Toast.makeText(
+                        this,
+                        "No incident data available",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
                 android.widget.Toast.makeText(
                     this,
-                    "No evidence available",
+                    "Error opening evidence viewer",
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
             }
         }
 
         binding.btnShareEvidence.setOnClickListener {
-            shareEvidence()
+            try {
+                shareEvidence()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                android.widget.Toast.makeText(
+                    this,
+                    "Error sharing evidence",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
         }
 
         binding.btnDeleteIncident.setOnClickListener {
-            deleteIncident()
+            try {
+                deleteIncident()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                android.widget.Toast.makeText(
+                    this,
+                    "Error deleting incident",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 
     private fun shareEvidence() {
-        currentIncident?.let { incident ->
+        if (currentIncident == null) {
+            android.widget.Toast.makeText(
+                this,
+                "No incident to share",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        try {
+            val incident = currentIncident!!
             val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault())
             val timeStr = dateFormat.format(Date(incident.startTime))
 
@@ -211,32 +306,71 @@ class IncidentReportActivity : AppCompatActivity() {
             shareIntent.putExtra(Intent.EXTRA_TEXT, message)
 
             startActivity(Intent.createChooser(shareIntent, "Share incident via"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            android.widget.Toast.makeText(
+                this,
+                "Failed to share: ${e.message}",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
     private fun deleteIncident() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Delete Incident")
-            .setMessage("Are you sure you want to delete this incident and all evidence?")
-            .setPositiveButton("Delete") { _, _ ->
-                currentIncident?.let { incident ->
-                    lifecycleScope.launch {
-                        // Delete from database
-                        database.evidenceDao().deleteEvidenceForIncident(incident.id)
-                        database.incidentDao().deleteIncident(incident)
+        if (currentIncident == null) {
+            android.widget.Toast.makeText(
+                this,
+                "No incident to delete",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
 
-                        runOnUiThread {
-                            android.widget.Toast.makeText(
-                                this@IncidentReportActivity,
-                                "Incident deleted",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                            finish()
+        try {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Delete Incident")
+                .setMessage("Are you sure you want to delete this incident and all evidence?")
+                .setPositiveButton("Delete") { _, _ ->
+                    val incident = currentIncident!!
+                    lifecycleScope.launch {
+                        try {
+                            // Delete from database
+                            database.evidenceDao().deleteEvidenceForIncident(incident.id)
+                            database.incidentDao().deleteIncident(incident)
+
+                            if (!isFinishing && !isDestroyed) {
+                                runOnUiThread {
+                                    android.widget.Toast.makeText(
+                                        this@IncidentReportActivity,
+                                        "Incident deleted",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                    finish()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            if (!isFinishing && !isDestroyed) {
+                                runOnUiThread {
+                                    android.widget.Toast.makeText(
+                                        this@IncidentReportActivity,
+                                        "Failed to delete: ${e.message}",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
                         }
                     }
                 }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+                .setNegativeButton("Cancel", null)
+                .show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            android.widget.Toast.makeText(
+                this,
+                "Error: ${e.message}",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 }
