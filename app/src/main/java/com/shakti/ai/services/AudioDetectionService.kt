@@ -69,7 +69,7 @@ class AudioDetectionService : Service() {
         // Create hidden storage directory
         createHiddenStorageDirectory()
 
-        // Start as foreground service with ULTRA STEALTH notification
+        // Start as foreground service with STEALTH notification
         startForeground(NOTIFICATION_ID, createStealthNotification("Protection active"))
     }
 
@@ -490,7 +490,7 @@ class AudioDetectionService : Service() {
     }
 
     /**
-     * Create ULTRA STEALTH foreground service notification (completely invisible)
+     * Create STEALTH foreground service notification
      */
     private fun createStealthNotification(message: String): Notification {
         val intent = Intent(this, CalculatorActivity::class.java)
@@ -499,33 +499,30 @@ class AudioDetectionService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // ULTRA STEALTH: Completely invisible, looks like Android system service
+        // MAXIMUM STEALTH: Minimal notification, NO sound, NO vibration
         return NotificationCompat.Builder(this, ShaktiApplication.CHANNEL_ID_THREAT)
-            .setContentTitle("") // BLANK title (completely invisible)
-            .setContentText("") // BLANK text
-            .setSmallIcon(android.R.drawable.ic_popup_sync) // Tiny system sync icon (barely visible)
+            .setContentTitle("System") // Generic system title
+            .setContentText("Running") // Minimal text
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // System icon
             .setContentIntent(pendingIntent)
-            .setOngoing(false) // Can be dismissed
-            .setPriority(NotificationCompat.PRIORITY_MIN) // Lowest priority
-            .setSilent(true) // COMPLETELY SILENT
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN) // Minimal visibility
+            .setSilent(true) // Silent
             .setSound(null) // NO SOUND
             .setVibrate(null) // NO VIBRATION
-            .setShowWhen(false) // NO timestamp
+            .setShowWhen(false) // Hide timestamp
             .setVisibility(NotificationCompat.VISIBILITY_SECRET) // Hide from lock screen
-            .setOnlyAlertOnce(true) // Don't alert again
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE) // Start immediately but silently
-            .setCategory(NotificationCompat.CATEGORY_SERVICE) // System service category
-            .setGroup("android_system") // Group as system notification
             .build()
     }
 
     /**
-     * Update notification message (but keep it stealth - actually do nothing to stay invisible)
+     * Update notification message (stealth version)
      */
     private fun updateNotification(message: String) {
-        // Don't update to keep it invisible
-        // Just log the message internally
-        android.util.Log.d(TAG, "Status: $message")
+        val notification = createStealthNotification(message)
+        val notificationManager =
+            getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
